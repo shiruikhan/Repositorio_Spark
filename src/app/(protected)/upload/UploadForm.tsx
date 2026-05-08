@@ -6,20 +6,77 @@ import { buildFilePath, type ResolutionType } from "@/lib/naming";
 import { saveImageRecord, getNextPosition } from "@/app/actions/upload";
 import type { UploadedImage, UploadError, UploadState } from "@/app/actions/upload";
 
+const MIN_DIM = 300;
+const MAX_LOW_WIDTH = 800;
+
+function checkDimensions(file: File): Promise<{ ok: boolean; width: number; height: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ ok: img.naturalWidth >= MIN_DIM && img.naturalHeight >= MIN_DIM, width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve({ ok: false, width: 0, height: 0 }); };
+    img.src = url;
+  });
+}
+
+async function resizeIfLow(file: File, resolutionType: ResolutionType): Promise<File> {
+  if (resolutionType !== "low") return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (img.naturalWidth <= MAX_LOW_WIDTH) { resolve(file); return; }
+      const scale = MAX_LOW_WIDTH / img.naturalWidth;
+      const canvas = document.createElement("canvas");
+      canvas.width = MAX_LOW_WIDTH;
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg" }) : file),
+        "image/jpeg",
+        0.88
+      );
+    };
+    img.src = url;
+  });
+}
+
 export default function UploadForm() {
   const [state, setState] = useState<UploadState | undefined>(undefined);
   const [pending, setPending] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [progress, setProgress] = useState<string>("");
+  const [fileProgress, setFileProgress] = useState<Map<number, number>>(new Map());
+  const [dimensionErrors, setDimensionErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productCodeRef = useRef<HTMLInputElement>(null);
   const resolutionRef = useRef<HTMLSelectElement>(null);
 
-  function addFiles(incoming: FileList | null) {
+  async function addFiles(incoming: FileList | null) {
     if (!incoming) return;
-    const valid = Array.from(incoming).filter((f) => f.type.startsWith("image/"));
+    const candidates = Array.from(incoming).filter((f) => f.type.startsWith("image/"));
+    const rejected: string[] = [];
+    const valid: File[] = [];
+
+    await Promise.all(
+      candidates.map(async (f) => {
+        const { ok, width, height } = await checkDimensions(f);
+        if (ok) {
+          valid.push(f);
+        } else {
+          rejected.push(`${f.name} (${width}×${height}px — mín. ${MIN_DIM}×${MIN_DIM}px)`);
+        }
+      })
+    );
+
+    setDimensionErrors(rejected);
+    if (valid.length === 0) return;
+
     setFiles((prev) => {
       const merged = [...prev, ...valid];
       setPreviews(merged.map((f) => URL.createObjectURL(f)));
@@ -46,6 +103,7 @@ export default function UploadForm() {
 
     setPending(true);
     setState(undefined);
+    setFileProgress(new Map());
 
     const supabase = createClient();
     const timestamp = Date.now();
@@ -57,18 +115,30 @@ export default function UploadForm() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const position = startPosition + i;
-      const filePath = buildFilePath(productCode, resolutionType, timestamp, position, file.name);
+      setFileProgress((prev) => new Map(prev).set(i, 0));
 
-      setProgress(`Enviando ${i + 1} de ${files.length}: ${file.name}`);
+      const fileToUpload = await resizeIfLow(file, resolutionType);
+      const filePath = buildFilePath(productCode, resolutionType, timestamp, position, file.name);
 
       const { error: storageError } = await supabase.storage
         .from("product-assets")
-        .upload(filePath, file, { upsert: false, contentType: file.type });
+        .upload(filePath, fileToUpload, {
+          upsert: false,
+          contentType: fileToUpload.type,
+          // @ts-expect-error — onUploadProgress is supported by Supabase JS v2
+          onUploadProgress: (evt: { loaded: number; total: number }) => {
+            const pct = Math.round((evt.loaded / evt.total) * 100);
+            setFileProgress((prev) => new Map(prev).set(i, pct));
+          },
+        });
 
       if (storageError) {
         errors.push({ fileName: file.name, message: storageError.message });
+        setFileProgress((prev) => new Map(prev).set(i, -1));
         continue;
       }
+
+      setFileProgress((prev) => new Map(prev).set(i, 100));
 
       const { data: { publicUrl } } = supabase.storage
         .from("product-assets")
@@ -84,7 +154,7 @@ export default function UploadForm() {
       results.push({ fileName: file.name, filePath, publicUrl });
     }
 
-    setProgress("");
+    setFileProgress(new Map());
     setPending(false);
 
     if (results.length > 0) {
@@ -149,7 +219,7 @@ export default function UploadForm() {
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); void addFiles(e.dataTransfer.files); }}
             onClick={() => fileInputRef.current?.click()}
             className={`cursor-pointer border-2 border-dashed rounded-xl py-10 flex flex-col items-center justify-center gap-2 transition ${
               dragging
@@ -174,7 +244,7 @@ export default function UploadForm() {
               accept="image/*"
               multiple
               className="hidden"
-              onChange={(e) => addFiles(e.target.files)}
+              onChange={(e) => void addFiles(e.target.files)}
             />
           </div>
         </div>
@@ -210,6 +280,39 @@ export default function UploadForm() {
           </div>
         )}
 
+        {/* Dimension errors */}
+        {dimensionErrors.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 space-y-0.5">
+            <p className="text-xs font-semibold text-orange-700 mb-1">Imagens rejeitadas (abaixo do mínimo):</p>
+            {dimensionErrors.map((msg, i) => (
+              <p key={i} className="text-xs text-orange-700">{msg}</p>
+            ))}
+          </div>
+        )}
+
+        {/* Per-file progress bars */}
+        {pending && fileProgress.size > 0 && (
+          <div className="space-y-2">
+            {files.map((file, i) => {
+              const pct = fileProgress.get(i) ?? 0;
+              return (
+                <div key={i}>
+                  <div className="flex justify-between text-xs text-gray-500 mb-0.5">
+                    <span className="truncate max-w-[70%]">{file.name}</span>
+                    <span>{pct < 0 ? "erro" : `${pct}%`}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all rounded-full ${pct < 0 ? "bg-red-500" : "bg-brand"}`}
+                      style={{ width: `${Math.max(0, pct)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Global error */}
         {state && !state.ok && state.message && !state.results?.length && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -228,7 +331,7 @@ export default function UploadForm() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              {progress || "Enviando..."}
+              Enviando...
             </>
           ) : (
             <>
