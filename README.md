@@ -63,7 +63,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 ## Public API
 
 ```
-GET /api/products/{productCode}/images
+GET https://repositorio.spark.ind.br/api/products/{productCode}/images
 ```
 
 No authentication required. CORS open. Cache: 60 s / stale 5 min.

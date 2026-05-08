@@ -4,10 +4,10 @@ const BASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON = "sua_anon_key";
 
 const CURL = (code: string) =>
-  `curl -s "https://sua-app.com/api/products/${code}/images"`;
+  `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images"`;
 
 const FETCH_JS = (code: string) => `const res = await fetch(
-  "https://sua-app.com/api/products/${code}/images"
+  "https://repositorio.spark.ind.br/api/products/${code}/images"
 );
 const { product_code, total, images } = await res.json();
 

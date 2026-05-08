@@ -57,7 +57,7 @@ Sistema web para upload, gerenciamento e distribuição de imagens de produtos p
 
 ## API para o integrador
 ```
-GET /api/products/{productCode}/images
+GET https://repositorio.spark.ind.br/api/products/{productCode}/images
 ```
 - Sem autenticação, CORS aberto
 - Cache 60s / stale 5 min
