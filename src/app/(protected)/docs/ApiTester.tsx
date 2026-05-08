@@ -45,7 +45,7 @@ export default function ApiTester() {
           onChange={(e) => setCode(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && runTest()}
           placeholder="Digite um código de produto..."
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
+          className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2 text-sm font-mono outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
         />
         <button
           onClick={runTest}

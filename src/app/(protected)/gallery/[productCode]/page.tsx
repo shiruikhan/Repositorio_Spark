@@ -17,7 +17,7 @@ export default async function ProductDetailPage({ params }: Props) {
     .from("ext_product_images")
     .select("id, product_code, file_path, resolution_type, position, public_url, created_at")
     .eq("product_code", code)
-    .order("resolution_type") // high first
+    .order("resolution_type")
     .order("position");
 
   if (!images || images.length === 0) notFound();
@@ -28,21 +28,21 @@ export default async function ProductDetailPage({ params }: Props) {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
         <Link href="/gallery" className="hover:text-brand transition">
           Galeria
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">Cód: {code}</span>
+        <span className="text-gray-900 dark:text-gray-100 font-medium">Cód: {code}</span>
       </div>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Produto {code}
           </h2>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {images.length} imagem(ns) —{" "}
             {highRes.length > 0 && `${highRes.length} alta res`}
             {highRes.length > 0 && lowRes.length > 0 && ", "}
@@ -79,12 +79,12 @@ export default async function ProductDetailPage({ params }: Props) {
       )}
 
       {/* API hint */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 space-y-1">
+      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-xl px-4 py-3 text-xs text-blue-700 dark:text-blue-400 space-y-1">
         <p className="font-semibold">Consulta via API (integrador)</p>
-        <code className="block font-mono text-blue-800 break-all">
+        <code className="block font-mono text-blue-800 dark:text-blue-300 break-all">
           {`GET ${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/ext_product_images?product_code=eq.${code}&select=*`}
         </code>
-        <p className="text-blue-600 pt-0.5">
+        <p className="text-blue-600 dark:text-blue-400 pt-0.5">
           Cabeçalho necessário:{" "}
           <code className="font-mono">apikey: &lt;ANON_KEY&gt;</code>
         </p>
@@ -113,7 +113,7 @@ function Section({
         <span className={`text-xs font-semibold px-2 py-0.5 rounded ${color}`}>
           {title}
         </span>
-        <div className="flex-1 h-px bg-gray-200" />
+        <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {children}
@@ -141,9 +141,9 @@ function ImageCard({
     : "";
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       {/* Preview */}
-      <div className="w-full h-44 bg-gray-100 overflow-hidden">
+      <div className="w-full h-44 bg-gray-100 dark:bg-gray-800 overflow-hidden">
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -152,7 +152,7 @@ function ImageCard({
             className="w-full h-full object-contain p-2"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
+          <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600 text-xs">
             sem prévia
           </div>
         )}
@@ -161,10 +161,10 @@ function ImageCard({
       {/* Info + actions */}
       <div className="p-3 space-y-2">
         <div>
-          <p className="text-xs font-medium text-gray-800 truncate" title={filename}>
+          <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate" title={filename}>
             {filename}
           </p>
-          <p className="text-[10px] text-gray-400 mt-0.5">
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
             Posição {img.position} · {date}
           </p>
         </div>

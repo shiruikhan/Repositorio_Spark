@@ -18,8 +18,8 @@ export default function CopyButton({ url }: { url: string }) {
       onClick={copy}
       className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
         copied
-          ? "bg-green-50 border-green-300 text-green-700"
-          : "bg-white border-gray-300 text-gray-700 hover:border-brand hover:text-brand"
+          ? "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400"
+          : "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand hover:text-brand"
       }`}
     >
       {copied ? (

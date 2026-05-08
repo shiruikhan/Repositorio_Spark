@@ -15,7 +15,6 @@ export default function UploadForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Reset form after successful upload
   useEffect(() => {
     if (state?.ok && (state.results?.length ?? 0) > 0) {
       setFiles([]);
@@ -44,7 +43,6 @@ export default function UploadForm() {
     });
   }
 
-  // Inject files into FormData before submission
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -59,7 +57,7 @@ export default function UploadForm() {
         {/* Product code + resolution */}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Código do produto <span className="text-brand">*</span>
             </label>
             <input
@@ -67,19 +65,19 @@ export default function UploadForm() {
               type="text"
               required
               placeholder="Ex: 1234"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Resolução <span className="text-brand">*</span>
             </label>
             <select
               name="resolution_type"
               required
               defaultValue=""
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition bg-white"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
             >
               <option value="" disabled>
                 Selecione...
@@ -92,7 +90,7 @@ export default function UploadForm() {
 
         {/* Drop zone */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Imagens <span className="text-brand">*</span>
           </label>
           <div
@@ -109,12 +107,12 @@ export default function UploadForm() {
             onClick={() => fileInputRef.current?.click()}
             className={`cursor-pointer border-2 border-dashed rounded-xl py-10 flex flex-col items-center justify-center gap-2 transition ${
               dragging
-                ? "border-brand bg-red-50"
-                : "border-gray-300 hover:border-brand hover:bg-gray-50"
+                ? "border-brand bg-red-50 dark:bg-red-950/20"
+                : "border-gray-300 dark:border-gray-700 hover:border-brand hover:bg-gray-50 dark:hover:bg-gray-800/50"
             }`}
           >
             <svg
-              className="w-8 h-8 text-gray-400"
+              className={`w-8 h-8 ${dragging ? "text-brand" : "text-gray-400 dark:text-gray-500"}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -126,11 +124,11 @@ export default function UploadForm() {
                 d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
               />
             </svg>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Arraste imagens aqui ou{" "}
               <span className="text-brand font-medium">clique para selecionar</span>
             </p>
-            <p className="text-xs text-gray-400">JPG, PNG, WEBP — até 50 MB cada</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">JPG, PNG, WEBP — até 50 MB cada</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -145,7 +143,7 @@ export default function UploadForm() {
         {/* Preview grid */}
         {files.length > 0 && (
           <div>
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
               {files.length} arquivo(s) selecionado(s)
             </p>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
@@ -155,7 +153,7 @@ export default function UploadForm() {
                   <img
                     src={previews[i]}
                     alt={file.name}
-                    className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                    className="w-full h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                   />
                   <button
                     type="button"
@@ -167,7 +165,7 @@ export default function UploadForm() {
                   >
                     ×
                   </button>
-                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
                     {file.name}
                   </p>
                 </div>
@@ -209,20 +207,20 @@ export default function UploadForm() {
 
       {/* Success result */}
       {state?.results && state.results.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-green-800">
+        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900/50 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-semibold text-green-800 dark:text-green-400">
             {state.message}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {state.results.map((img) => (
               <div
                 key={img.filePath}
-                className="flex items-center gap-2 bg-white border border-green-100 rounded-lg px-3 py-2"
+                className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-green-100 dark:border-green-900/50 rounded-lg px-3 py-2"
               >
                 <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-xs text-gray-700 truncate flex-1">
+                <span className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1">
                   {img.fileName}
                 </span>
                 <CopyButton url={img.publicUrl} />

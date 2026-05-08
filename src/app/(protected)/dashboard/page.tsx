@@ -19,7 +19,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <h2 className="text-lg font-semibold text-gray-900">Visão geral</h2>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Visão geral</h2>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -30,11 +30,11 @@ export default async function DashboardPage() {
 
       {/* Recent uploads */}
       <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">
+        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
           Últimos uploads
         </h3>
         {!recent || recent.length === 0 ? (
-          <div className="bg-white border border-dashed border-gray-300 rounded-xl py-12 text-center text-sm text-gray-400">
+          <div className="bg-white dark:bg-gray-900 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl py-12 text-center text-sm text-gray-400 dark:text-gray-500">
             Nenhuma imagem cadastrada ainda.{" "}
             <a href="/upload" className="text-brand hover:underline">
               Fazer upload
@@ -45,7 +45,7 @@ export default async function DashboardPage() {
             {recent.map((img) => (
               <div
                 key={img.id}
-                className="bg-white border border-gray-200 rounded-xl overflow-hidden"
+                className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"
               >
                 {img.public_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -55,12 +55,12 @@ export default async function DashboardPage() {
                     className="w-full h-32 object-cover"
                   />
                 ) : (
-                  <div className="w-full h-32 bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                  <div className="w-full h-32 bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 dark:text-gray-600 text-xs">
                     sem prévia
                   </div>
                 )}
                 <div className="p-2">
-                  <p className="text-xs font-medium text-gray-800 truncate">
+                  <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
                     Cód: {img.product_code}
                   </p>
                   <span
@@ -92,7 +92,7 @@ export default async function DashboardPage() {
         </a>
         <a
           href="/gallery"
-          className="inline-flex items-center gap-2 border border-gray-300 hover:border-gray-400 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition"
+          className="inline-flex items-center gap-2 border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold px-4 py-2 rounded-lg transition"
         >
           Ver galeria
         </a>
@@ -111,10 +111,10 @@ function StatCard({
   isText?: boolean;
 }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
       <p
-        className={`font-bold text-gray-900 ${isText ? "text-sm" : "text-2xl"}`}
+        className={`font-bold text-gray-900 dark:text-gray-100 ${isText ? "text-sm" : "text-2xl"}`}
       >
         {value}
       </p>
