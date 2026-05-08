@@ -15,14 +15,16 @@ export default function Header({ userEmail, isAdmin }: HeaderProps) {
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 h-14 flex items-center px-6 gap-4">
       {/* Logo */}
       <div className="flex items-center gap-2 flex-1">
-        <Image
-          src={LOGO_URL}
-          alt="Spark Eletrônica"
-          width={110}
-          height={32}
-          className="h-8 w-auto object-contain"
-          priority
-        />
+        <a href="/dashboard">
+          <Image
+            src={LOGO_URL}
+            alt="Spark Eletrônica"
+            width={110}
+            height={32}
+            className="h-8 w-auto object-contain"
+            priority
+          />
+        </a>
       </div>
 
       {/* Nav links */}
