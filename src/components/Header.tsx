@@ -40,9 +40,13 @@ export default function Header({ userEmail, isAdmin }: HeaderProps) {
       {/* Theme toggle + User + logout */}
       <div className="flex items-center gap-3">
         <ThemeToggle />
-        <span className="text-xs text-gray-500 dark:text-gray-400 hidden md:block truncate max-w-[180px]">
+        <a
+          href="/profile"
+          className="text-xs text-gray-500 dark:text-gray-400 hover:text-brand dark:hover:text-brand hidden md:block truncate max-w-[180px] transition"
+          title="Meu Perfil"
+        >
           {userEmail}
-        </span>
+        </a>
         <form action={logout}>
           <button
             type="submit"

@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, X-API-Key",
 };
 
 export async function OPTIONS() {
@@ -12,7 +12,7 @@ export async function OPTIONS() {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ productCode: string }> }
 ) {
   const { productCode } = await params;
@@ -27,8 +27,32 @@ export async function GET(
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  // Optional API key validation — if header present, validate it
+  const apiKey = req.headers.get("X-API-Key");
+  if (apiKey) {
+    const { data: keyRow } = await supabase
+      .from("ext_api_keys")
+      .select("user_id, last_used_at")
+      .eq("api_key", apiKey)
+      .maybeSingle();
+
+    if (!keyRow) {
+      return NextResponse.json(
+        { error: "Invalid API key." },
+        { status: 401, headers: CORS }
+      );
+    }
+
+    // Update last_used_at without blocking the response
+    supabase
+      .from("ext_api_keys")
+      .update({ last_used_at: new Date().toISOString() })
+      .eq("api_key", apiKey)
+      .then(() => {});
+  }
 
   const { data, error } = await supabase
     .from("ext_product_images")

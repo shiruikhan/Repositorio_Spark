@@ -1,10 +1,14 @@
 import ApiTester from "./ApiTester";
+import { createClient } from "@/lib/supabase/server";
 
 const BASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const ANON = "sua_anon_key";
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 const CURL = (code: string) =>
   `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images"`;
+
+const CURL_WITH_KEY = (code: string) =>
+  `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images" \\\n  -H "X-API-Key: SUA_CHAVE_API"`;
 
 const FETCH_JS = (code: string) => `const res = await fetch(
   "https://repositorio.spark.ind.br/api/products/${code}/images"
@@ -17,7 +21,7 @@ const { product_code, total, images } = await res.json();
 const SUPABASE_DIRECT = (code: string) =>
   `${BASE}/rest/v1/ext_product_images` +
   `?product_code=eq.${code}&select=id,resolution_type,position,public_url,created_at` +
-  `\n\n# Header obrigatório:\napikey: ${ANON}`;
+  `\n\n# Header obrigatório:\napikey: ${ANON_KEY || "sua_anon_key"}`;
 
 const EXAMPLE_RESPONSE = JSON.stringify(
   {
@@ -44,7 +48,16 @@ const EXAMPLE_RESPONSE = JSON.stringify(
   2
 );
 
-export default function DocsPage() {
+export default async function DocsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: keyRow } = await supabase
+    .from("ext_api_keys")
+    .select("api_key")
+    .eq("user_id", user!.id)
+    .maybeSingle();
+  const userApiKey = keyRow?.api_key ?? null;
+
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div>
@@ -54,6 +67,34 @@ export default function DocsPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
           Endpoint público para consulta de imagens de produtos pelo integrador.
         </p>
+      </div>
+
+      {/* API Key notice */}
+      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-xl px-4 py-3 text-sm text-blue-800 dark:text-blue-300 flex items-start gap-3">
+        <span className="text-lg leading-none mt-0.5">🔑</span>
+        <div className="space-y-1">
+          {userApiKey ? (
+            <>
+              <p className="font-semibold">Sua chave API</p>
+              <code className="block text-xs font-mono bg-blue-100/60 dark:bg-blue-900/40 rounded px-2 py-1 break-all select-all">
+                {userApiKey}
+              </code>
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                Use no header <code className="font-mono">X-API-Key</code> ou como <code className="font-mono">apikey</code> no Supabase REST.{" "}
+                <a href="/profile" className="underline hover:text-blue-800 dark:hover:text-blue-200">Gerenciar no perfil →</a>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">Nenhuma chave API gerada</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                Gere sua chave na{" "}
+                <a href="/profile" className="underline hover:text-blue-800 dark:hover:text-blue-200">página de perfil</a>{" "}
+                para usar nos exemplos abaixo e no Supabase REST.
+              </p>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Endpoint spec */}
@@ -69,7 +110,7 @@ export default function DocsPage() {
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Retorna todas as imagens de um produto em ordem de resolução e posição.
-            Endpoint público — nenhuma autenticação necessária.
+            Endpoint público — nenhuma autenticação necessária. O header <code className="font-mono text-xs">X-API-Key</code> é opcional e registra o uso da chave.
           </p>
 
           <table className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -85,6 +126,11 @@ export default function DocsPage() {
                 <td className="px-3 py-2 font-mono text-brand">productCode</td>
                 <td className="px-3 py-2 text-gray-500 dark:text-gray-400">path param</td>
                 <td className="px-3 py-2 text-gray-600 dark:text-gray-400">Código do produto (URL-encoded)</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono text-brand">X-API-Key</td>
+                <td className="px-3 py-2 text-gray-500 dark:text-gray-400">header (opcional)</td>
+                <td className="px-3 py-2 text-gray-600 dark:text-gray-400">Chave API gerada no perfil</td>
               </tr>
             </tbody>
           </table>
@@ -128,10 +174,11 @@ export default function DocsPage() {
       {/* Code examples */}
       <Section title="Exemplos de integração">
         <div className="space-y-4">
-          <CodeBlock label="cURL" code={CURL("1234")} lang="bash" />
+          <CodeBlock label="cURL (sem autenticação)" code={CURL("1234")} lang="bash" />
+          <CodeBlock label="cURL (com chave API)" code={CURL_WITH_KEY("1234")} lang="bash" />
           <CodeBlock label="JavaScript / TypeScript" code={FETCH_JS("1234")} lang="js" />
           <CodeBlock
-            label="Supabase REST direto (alternativa)"
+            label={`Supabase REST direto (apikey: ${userApiKey ? "sua chave" : "gere no perfil"})`}
             code={SUPABASE_DIRECT("1234")}
             lang="bash"
           />
