@@ -51,10 +51,10 @@ export async function createUser(
 
   if (error) return { ok: false, message: error.message };
 
-  if (isAdmin && data.user) {
+  if (data.user) {
     await admin
       .from("cliente")
-      .update({ is_admin: true })
+      .upsert({ id: data.user.id, email: data.user.email, is_admin: isAdmin })
       .eq("id", data.user.id);
   }
 
