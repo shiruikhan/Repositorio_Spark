@@ -37,12 +37,32 @@ Sistema web para upload, gerenciamento e distribuição de imagens de produtos p
 - **Bucket**: `product-assets`
 - Leitura pública; escrita restrita a usuários autenticados (RLS)
 
+## Rotas da aplicação
+| Rota | Tipo | Descrição |
+|------|------|-----------|
+| `/login` | público | Autenticação Supabase Auth |
+| `/dashboard` | protegido | Visão geral com stats e últimos uploads |
+| `/upload` | protegido | Upload múltiplo com drag-drop e preview |
+| `/gallery` | protegido | Busca e grid de produtos |
+| `/gallery/[productCode]` | protegido | Detalhe com copy link e download |
+| `/docs` | protegido | Documentação e tester da API |
+| `/api/products/[productCode]/images` | **público** | JSON endpoint para o integrador |
+
 ## Fases do Plano
 - [x] **Fase 1**: Infraestrutura Supabase (tabela + RLS + bucket)
-- [ ] **Fase 2**: Autenticação e layout base
-- [ ] **Fase 3**: Upload múltiplo com padronização de nomenclatura
-- [ ] **Fase 4**: Galeria e visualização
-- [ ] **Fase 5**: Endpoint/documentação para integrador
+- [x] **Fase 2**: Autenticação e layout base
+- [x] **Fase 3**: Upload múltiplo com padronização de nomenclatura
+- [x] **Fase 4**: Galeria e visualização
+- [x] **Fase 5**: Endpoint/documentação para integrador
+
+## API para o integrador
+```
+GET /api/products/{productCode}/images
+```
+- Sem autenticação, CORS aberto
+- Cache 60s / stale 5 min
+- Resposta: `{ product_code, total, images[] }`
+- Alternativa: Supabase REST direto com `apikey` header
 
 ## Nomenclatura de arquivos no bucket
 ```

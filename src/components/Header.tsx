@@ -49,6 +49,12 @@ export default function Header({ userEmail }: HeaderProps) {
         >
           Galeria
         </a>
+        <a
+          href="/docs"
+          className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+        >
+          API
+        </a>
       </nav>
 
       {/* User + logout */}
