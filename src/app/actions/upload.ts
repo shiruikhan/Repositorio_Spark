@@ -71,6 +71,7 @@ export async function getNextPosition(
       .select("position")
       .eq("product_code", productCode)
       .eq("resolution_type", resolutionType)
+      .is("deleted_at", null)
       .order("position", { ascending: false })
       .limit(1);
 

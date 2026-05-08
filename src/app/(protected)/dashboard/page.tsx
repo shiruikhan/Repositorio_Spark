@@ -5,15 +5,18 @@ export default async function DashboardPage() {
 
   const { count: totalImages } = await supabase
     .from("ext_product_images")
-    .select("*", { count: "exact", head: true });
+    .select("*", { count: "exact", head: true })
+    .is("deleted_at", null);
 
   const { count: totalProducts } = await supabase
     .from("ext_product_images")
-    .select("product_code", { count: "exact", head: true });
+    .select("product_code", { count: "exact", head: true })
+    .is("deleted_at", null);
 
   const { data: recent } = await supabase
     .from("ext_product_images")
     .select("id, product_code, resolution_type, public_url, created_at")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(6);
 

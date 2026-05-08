@@ -17,6 +17,7 @@ export default async function ProductDetailPage({ params }: Props) {
     .from("ext_product_images")
     .select("id, product_code, file_path, resolution_type, position, public_url, created_at")
     .eq("product_code", code)
+    .is("deleted_at", null)
     .order("resolution_type")
     .order("position");
 

@@ -34,6 +34,7 @@ export async function GET(
     .from("ext_product_images")
     .select("id, resolution_type, position, public_url, created_at")
     .eq("product_code", code)
+    .is("deleted_at", null)
     .order("resolution_type") // high before low
     .order("position");
 

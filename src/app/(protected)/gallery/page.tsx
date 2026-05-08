@@ -12,6 +12,7 @@ export default async function GalleryPage({ searchParams }: Props) {
   let query = supabase
     .from("ext_product_images")
     .select("product_code, resolution_type, public_url, position")
+    .is("deleted_at", null)
     .order("product_code")
     .order("resolution_type")
     .order("position");
