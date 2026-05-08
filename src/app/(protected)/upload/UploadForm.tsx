@@ -1,33 +1,25 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { uploadImages, type UploadState } from "@/app/actions/upload";
+import { useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { buildFilePath, type ResolutionType } from "@/lib/naming";
+import { saveImageRecord, getNextPosition } from "@/app/actions/upload";
+import type { UploadedImage, UploadError, UploadState } from "@/app/actions/upload";
 
 export default function UploadForm() {
-  const [state, formAction, pending] = useActionState<
-    UploadState | undefined,
-    FormData
-  >(uploadImages, undefined);
-
+  const [state, setState] = useState<UploadState | undefined>(undefined);
+  const [pending, setPending] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (state?.ok && (state.results?.length ?? 0) > 0) {
-      setFiles([]);
-      setPreviews([]);
-      formRef.current?.reset();
-    }
-  }, [state]);
+  const productCodeRef = useRef<HTMLInputElement>(null);
+  const resolutionRef = useRef<HTMLSelectElement>(null);
 
   function addFiles(incoming: FileList | null) {
     if (!incoming) return;
-    const valid = Array.from(incoming).filter((f) =>
-      f.type.startsWith("image/")
-    );
+    const valid = Array.from(incoming).filter((f) => f.type.startsWith("image/"));
     setFiles((prev) => {
       const merged = [...prev, ...valid];
       setPreviews(merged.map((f) => URL.createObjectURL(f)));
@@ -43,17 +35,78 @@ export default function UploadForm() {
     });
   }
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    fd.delete("files");
-    files.forEach((f) => fd.append("files", f));
-    formAction(fd);
+    const productCode = productCodeRef.current?.value.trim() ?? "";
+    const resolutionType = resolutionRef.current?.value as ResolutionType;
+
+    if (!productCode) { setState({ ok: false, message: "Informe o código do produto." }); return; }
+    if (!["high", "low"].includes(resolutionType)) { setState({ ok: false, message: "Selecione o tipo de resolução." }); return; }
+    if (files.length === 0) { setState({ ok: false, message: "Selecione ao menos uma imagem." }); return; }
+
+    setPending(true);
+    setState(undefined);
+
+    const supabase = createClient();
+    const timestamp = Date.now();
+    const startPosition = await getNextPosition(productCode, resolutionType);
+
+    const results: UploadedImage[] = [];
+    const errors: UploadError[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const position = startPosition + i;
+      const filePath = buildFilePath(productCode, resolutionType, timestamp, position, file.name);
+
+      setProgress(`Enviando ${i + 1} de ${files.length}: ${file.name}`);
+
+      const { error: storageError } = await supabase.storage
+        .from("product-assets")
+        .upload(filePath, file, { upsert: false, contentType: file.type });
+
+      if (storageError) {
+        errors.push({ fileName: file.name, message: storageError.message });
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("product-assets")
+        .getPublicUrl(filePath);
+
+      const saved = await saveImageRecord({ productCode, resolutionType, filePath, publicUrl, position });
+
+      if (!saved.ok) {
+        errors.push({ fileName: file.name, message: saved.message ?? "Erro ao salvar no banco." });
+        continue;
+      }
+
+      results.push({ fileName: file.name, filePath, publicUrl });
+    }
+
+    setProgress("");
+    setPending(false);
+
+    if (results.length > 0) {
+      setFiles([]);
+      setPreviews([]);
+    }
+
+    setState({
+      ok: errors.length === 0,
+      productCode,
+      results,
+      errors,
+      message:
+        results.length > 0
+          ? `${results.length} imagem(ns) enviada(s) com sucesso.`
+          : "Nenhuma imagem foi enviada.",
+    });
   }
 
   return (
     <div className="space-y-6">
-      <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {/* Product code + resolution */}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
@@ -61,6 +114,7 @@ export default function UploadForm() {
               Código do produto <span className="text-brand">*</span>
             </label>
             <input
+              ref={productCodeRef}
               name="product_code"
               type="text"
               required
@@ -74,14 +128,13 @@ export default function UploadForm() {
               Resolução <span className="text-brand">*</span>
             </label>
             <select
+              ref={resolutionRef}
               name="resolution_type"
               required
               defaultValue=""
               className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
             >
-              <option value="" disabled>
-                Selecione...
-              </option>
+              <option value="" disabled>Selecione...</option>
               <option value="high">Alta resolução</option>
               <option value="low">Baixa resolução</option>
             </select>
@@ -94,16 +147,9 @@ export default function UploadForm() {
             Imagens <span className="text-brand">*</span>
           </label>
           <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              addFiles(e.dataTransfer.files);
-            }}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
             onClick={() => fileInputRef.current?.click()}
             className={`cursor-pointer border-2 border-dashed rounded-xl py-10 flex flex-col items-center justify-center gap-2 transition ${
               dragging
@@ -113,16 +159,9 @@ export default function UploadForm() {
           >
             <svg
               className={`w-8 h-8 ${dragging ? "text-brand" : "text-gray-400 dark:text-gray-500"}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Arraste imagens aqui ou{" "}
@@ -157,10 +196,7 @@ export default function UploadForm() {
                   />
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(i);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); removeFile(i); }}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
                   >
                     ×
@@ -192,7 +228,7 @@ export default function UploadForm() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              Enviando...
+              {progress || "Enviando..."}
             </>
           ) : (
             <>

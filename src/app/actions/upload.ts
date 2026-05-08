@@ -1,7 +1,6 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { buildFilePath, type ResolutionType } from "@/lib/naming";
 
 export type UploadedImage = {
   fileName: string;
@@ -22,89 +21,61 @@ export type UploadState = {
   message?: string;
 };
 
-export async function uploadImages(
-  _prev: UploadState | undefined,
-  formData: FormData
-): Promise<UploadState> {
-  const supabase = await createClient();
+export type SaveImagePayload = {
+  productCode: string;
+  resolutionType: "high" | "low";
+  filePath: string;
+  publicUrl: string;
+  position: number;
+};
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { ok: false, message: "Sessão expirada. Faça login novamente." };
-
-  const productCode = (formData.get("product_code") as string)?.trim();
-  const resolutionType = formData.get("resolution_type") as ResolutionType;
-  const files = formData.getAll("files") as File[];
-
-  if (!productCode) return { ok: false, message: "Informe o código do produto." };
-  if (!["high", "low"].includes(resolutionType))
-    return { ok: false, message: "Selecione o tipo de resolução." };
-  if (files.length === 0 || (files.length === 1 && files[0].size === 0))
-    return { ok: false, message: "Selecione ao menos uma imagem." };
-
-  // Descobre a maior posição já existente para este produto + tipo,
-  // garantindo que novos uploads continuem a sequência sem sobrescrever.
-  const { data: existing } = await supabase
-    .from("ext_product_images")
-    .select("position")
-    .eq("product_code", productCode)
-    .eq("resolution_type", resolutionType)
-    .order("position", { ascending: false })
-    .limit(1);
-
-  const startPosition = existing && existing.length > 0
-    ? (existing[0].position as number) + 1
-    : 0;
-
-  const timestamp = Date.now();
-  const results: UploadedImage[] = [];
-  const errors: UploadError[] = [];
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const position = startPosition + i;
-    const filePath = buildFilePath(productCode, resolutionType, timestamp, position, file.name);
-
-    // upsert: false — nunca sobrescreve um arquivo existente no bucket
-    const { error: storageError } = await supabase.storage
-      .from("product-assets")
-      .upload(filePath, file, { upsert: false, contentType: file.type });
-
-    if (storageError) {
-      errors.push({ fileName: file.name, message: storageError.message });
-      continue;
-    }
+/** Salva os metadados de uma imagem já enviada ao Storage. */
+export async function saveImageRecord(
+  payload: SaveImagePayload
+): Promise<{ ok: boolean; message?: string }> {
+  try {
+    const supabase = await createClient();
 
     const {
-      data: { publicUrl },
-    } = supabase.storage.from("product-assets").getPublicUrl(filePath);
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const { error: dbError } = await supabase.from("ext_product_images").insert({
-      product_code: productCode,
-      file_path: filePath,
-      resolution_type: resolutionType,
-      position,
-      public_url: publicUrl,
+    if (!user) return { ok: false, message: "Sessão expirada. Faça login novamente." };
+
+    const { error } = await supabase.from("ext_product_images").insert({
+      product_code: payload.productCode,
+      file_path: payload.filePath,
+      resolution_type: payload.resolutionType,
+      position: payload.position,
+      public_url: payload.publicUrl,
     });
 
-    if (dbError) {
-      errors.push({ fileName: file.name, message: dbError.message });
-      continue;
-    }
+    if (error) return { ok: false, message: error.message };
 
-    results.push({ fileName: file.name, filePath, publicUrl });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro inesperado.";
+    return { ok: false, message };
   }
+}
 
-  return {
-    ok: errors.length === 0,
-    productCode,
-    results,
-    errors,
-    message:
-      results.length > 0
-        ? `${results.length} imagem(ns) enviada(s) com sucesso.`
-        : "Nenhuma imagem foi enviada.",
-  };
+/** Obtém a próxima posição disponível para um produto + tipo. */
+export async function getNextPosition(
+  productCode: string,
+  resolutionType: "high" | "low"
+): Promise<number> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("ext_product_images")
+      .select("position")
+      .eq("product_code", productCode)
+      .eq("resolution_type", resolutionType)
+      .order("position", { ascending: false })
+      .limit(1);
+
+    return data && data.length > 0 ? (data[0].position as number) + 1 : 0;
+  } catch {
+    return 0;
+  }
 }
