@@ -22,7 +22,7 @@ export default function Header({ userEmail, isAdmin }: HeaderProps) {
             alt="Spark Eletrônica"
             width={110}
             height={32}
-            className="h-8 w-auto object-contain dark:brightness-0 dark:invert"
+            className="h-8 w-auto object-contain"
             priority
           />
         </a>
