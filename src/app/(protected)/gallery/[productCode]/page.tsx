@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import CopyButton from "@/components/CopyButton";
-import DownloadButton from "@/components/DownloadButton";
+import ImageGrid from "./ImageGrid";
 
 interface Props {
   params: Promise<{ productCode: string }>;
@@ -23,8 +22,24 @@ export default async function ProductDetailPage({ params }: Props) {
 
   if (!images || images.length === 0) notFound();
 
-  const highRes = images.filter((i) => i.resolution_type === "high");
-  const lowRes = images.filter((i) => i.resolution_type === "low");
+  const highCount = images.filter((i) => i.resolution_type === "high").length;
+  const lowCount = images.filter((i) => i.resolution_type === "low").length;
+
+  const apiPreview = JSON.stringify(
+    {
+      product_code: code,
+      total: images.length,
+      images: images.map(({ id, resolution_type, position, public_url, created_at }) => ({
+        id,
+        resolution_type,
+        position,
+        public_url,
+        created_at,
+      })),
+    },
+    null,
+    2
+  );
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -45,9 +60,9 @@ export default async function ProductDetailPage({ params }: Props) {
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {images.length} imagem(ns) —{" "}
-            {highRes.length > 0 && `${highRes.length} alta res`}
-            {highRes.length > 0 && lowRes.length > 0 && ", "}
-            {lowRes.length > 0 && `${lowRes.length} baixa res`}
+            {highCount > 0 && `${highCount} alta res`}
+            {highCount > 0 && lowCount > 0 && ", "}
+            {lowCount > 0 && `${lowCount} baixa res`}
           </p>
         </div>
         <Link
@@ -61,23 +76,18 @@ export default async function ProductDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      {/* Section: Alta resolução */}
-      {highRes.length > 0 && (
-        <Section title="Alta resolução" badge="blue">
-          {highRes.map((img) => (
-            <ImageCard key={img.id} img={img} />
-          ))}
-        </Section>
-      )}
+      {/* Image grid with delete + drag-and-drop */}
+      <ImageGrid images={images} productCode={code} />
 
-      {/* Section: Baixa resolução */}
-      {lowRes.length > 0 && (
-        <Section title="Baixa resolução" badge="green">
-          {lowRes.map((img) => (
-            <ImageCard key={img.id} img={img} />
-          ))}
-        </Section>
-      )}
+      {/* API preview (Task 9) */}
+      <details className="bg-gray-900 rounded-xl overflow-hidden">
+        <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-gray-400 hover:text-gray-200 select-none">
+          Prévia JSON da API — GET /api/products/{code}/images
+        </summary>
+        <pre className="px-4 pb-4 text-xs text-green-300 font-mono overflow-auto max-h-72">
+          {apiPreview}
+        </pre>
+      </details>
 
       {/* API hint */}
       <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-xl px-4 py-3 text-xs text-blue-700 dark:text-blue-400 space-y-1">
@@ -89,95 +99,6 @@ export default async function ProductDetailPage({ params }: Props) {
           Cabeçalho necessário:{" "}
           <code className="font-mono">apikey: &lt;ANON_KEY&gt;</code>
         </p>
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  badge,
-  children,
-}: {
-  title: string;
-  badge: "blue" | "green";
-  children: React.ReactNode;
-}) {
-  const color =
-    badge === "blue"
-      ? "bg-blue-100 text-blue-700"
-      : "bg-green-100 text-green-700";
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${color}`}>
-          {title}
-        </span>
-        <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ImageCard({
-  img,
-}: {
-  img: {
-    id: number;
-    file_path: string;
-    resolution_type: string;
-    position: number;
-    public_url: string | null;
-    created_at: string | null;
-  };
-}) {
-  const filename = img.file_path.split("/").pop() ?? img.file_path;
-  const url = img.public_url ?? "";
-  const date = img.created_at
-    ? new Date(img.created_at).toLocaleDateString("pt-BR")
-    : "";
-
-  return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-      {/* Preview */}
-      <div className="w-full h-44 bg-gray-100 dark:bg-gray-800 overflow-hidden">
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={url}
-            alt={filename}
-            className="w-full h-full object-contain p-2"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600 text-xs">
-            sem prévia
-          </div>
-        )}
-      </div>
-
-      {/* Info + actions */}
-      <div className="p-3 space-y-2">
-        <div>
-          <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate" title={filename}>
-            {filename}
-          </p>
-          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-            Posição {img.position} · {date}
-          </p>
-        </div>
-
-        {url && (
-          <div className="flex gap-2 flex-wrap">
-            <CopyButton url={url} />
-            {img.resolution_type === "high" && (
-              <DownloadButton url={url} filename={filename} />
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
