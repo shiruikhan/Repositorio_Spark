@@ -59,7 +59,7 @@ export async function GET(
     .select("id, resolution_type, position, public_url, created_at")
     .eq("product_code", code)
     .is("deleted_at", null)
-    .order("resolution_type") // high before low
+    .order("resolution_type")
     .order("position");
 
   if (error) {
@@ -69,8 +69,16 @@ export async function GET(
     );
   }
 
+  const images  = data.filter((r) => r.resolution_type !== "manual");
+  const manuals = data.filter((r) => r.resolution_type === "manual");
+
   return NextResponse.json(
-    { product_code: code, total: data.length, images: data },
+    {
+      product_code: code,
+      total: images.length,
+      images,
+      manuals,
+    },
     {
       status: 200,
       headers: {

@@ -23,7 +23,7 @@ export type UploadState = {
 
 export type SaveImagePayload = {
   productCode: string;
-  resolutionType: "high" | "low";
+  resolutionType: "high" | "low" | "manual";
   filePath: string;
   publicUrl: string;
   position: number;
@@ -62,7 +62,7 @@ export async function saveImageRecord(
 /** Obtém a próxima posição disponível para um produto + tipo. */
 export async function getNextPosition(
   productCode: string,
-  resolutionType: "high" | "low"
+  resolutionType: "high" | "low" | "manual"
 ): Promise<number> {
   try {
     const supabase = await createClient();

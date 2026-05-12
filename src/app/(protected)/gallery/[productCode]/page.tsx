@@ -22,19 +22,22 @@ export default async function ProductDetailPage({ params }: Props) {
 
   if (!images || images.length === 0) notFound();
 
-  const highCount = images.filter((i) => i.resolution_type === "high").length;
-  const lowCount = images.filter((i) => i.resolution_type === "low").length;
+  const highCount   = images.filter((i) => i.resolution_type === "high").length;
+  const lowCount    = images.filter((i) => i.resolution_type === "low").length;
+  const manualCount = images.filter((i) => i.resolution_type === "manual").length;
+  const manuals     = images.filter((i) => i.resolution_type === "manual");
+
+  const imagesOnly = images.filter((i) => i.resolution_type !== "manual");
 
   const apiPreview = JSON.stringify(
     {
       product_code: code,
-      total: images.length,
-      images: images.map(({ id, resolution_type, position, public_url, created_at }) => ({
-        id,
-        resolution_type,
-        position,
-        public_url,
-        created_at,
+      total: imagesOnly.length,
+      images: imagesOnly.map(({ id, resolution_type, position, public_url, created_at }) => ({
+        id, resolution_type, position, public_url, created_at,
+      })),
+      manuals: manuals.map(({ id, public_url, created_at }) => ({
+        id, public_url, created_at,
       })),
     },
     null,
@@ -58,11 +61,16 @@ export default async function ProductDetailPage({ params }: Props) {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Produto {code}
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            {images.length} imagem(ns) —{" "}
-            {highCount > 0 && `${highCount} alta res`}
-            {highCount > 0 && lowCount > 0 && ", "}
-            {lowCount > 0 && `${lowCount} baixa res`}
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap gap-1.5 items-center">
+            {highCount > 0 && (
+              <span className="text-[11px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta ({highCount})</span>
+            )}
+            {lowCount > 0 && (
+              <span className="text-[11px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa ({lowCount})</span>
+            )}
+            {manualCount > 0 && (
+              <span className="text-[11px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">Manual PDF</span>
+            )}
           </p>
         </div>
         <Link
@@ -76,8 +84,36 @@ export default async function ProductDetailPage({ params }: Props) {
         </Link>
       </div>
 
+      {/* Manual PDF section */}
+      {manuals.length > 0 && (
+        <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-xl px-4 py-3 space-y-2">
+          <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 uppercase tracking-wide">Manual do produto</p>
+          {manuals.map((m) => (
+            <div key={m.id} className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-orange-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+              <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">
+                {m.file_path.split("/").pop()}
+              </span>
+              {m.public_url && (
+                <a
+                  href={m.public_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  className="shrink-0 text-xs font-semibold text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-200 border border-orange-300 dark:border-orange-700 px-2.5 py-1 rounded-lg transition"
+                >
+                  Download PDF
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Image grid with delete + drag-and-drop */}
-      <ImageGrid images={images} productCode={code} />
+      <ImageGrid images={imagesOnly} productCode={code} />
 
       {/* API preview (Task 9) */}
       <details className="bg-gray-900 rounded-xl overflow-hidden">

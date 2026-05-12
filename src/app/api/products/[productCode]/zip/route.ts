@@ -62,8 +62,11 @@ export async function GET(
         const res = await fetch(img.public_url);
         if (!res.ok) return;
         const buffer = await res.arrayBuffer();
-        const filename = img.file_path.split("/").pop() ?? (img.id + ".jpg");
-        const folder = img.resolution_type === "high" ? "alta_resolucao" : "baixa_resolucao";
+        const filename = img.file_path.split("/").pop() ?? img.id;
+        const folder =
+          img.resolution_type === "high"    ? "alta_resolucao" :
+          img.resolution_type === "manual"  ? "manuais" :
+          "baixa_resolucao";
         zip.folder(folder)?.file(filename, buffer);
       } catch {
         // skip on error

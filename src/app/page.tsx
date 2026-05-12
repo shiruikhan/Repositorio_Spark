@@ -16,6 +16,7 @@ export type ProductSummary = {
   total_images: number;
   high_count: number;
   low_count: number;
+  manual_count: number;
   thumb_url: string | null;
 };
 
@@ -27,7 +28,7 @@ export default async function PublicPage() {
 
   const { data: products } = await supabase
     .from("ext_product_images_summary")
-    .select("product_code, total_images, high_count, low_count, thumb_url")
+    .select("product_code, total_images, high_count, low_count, manual_count, thumb_url")
     .order("product_code");
 
   return (
