@@ -8,10 +8,10 @@ export default async function DashboardPage() {
     .select("*", { count: "exact", head: true })
     .is("deleted_at", null);
 
+  // Conta produtos distintos usando a view que agrupa por product_code
   const { count: totalProducts } = await supabase
-    .from("ext_product_images")
-    .select("product_code", { count: "exact", head: true })
-    .is("deleted_at", null);
+    .from("ext_product_images_summary")
+    .select("*", { count: "exact", head: true });
 
   const { data: recent } = await supabase
     .from("ext_product_images")

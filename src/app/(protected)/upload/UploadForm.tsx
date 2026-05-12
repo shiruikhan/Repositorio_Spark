@@ -22,25 +22,47 @@ function checkDimensions(file: File): Promise<{ ok: boolean; width: number; heig
   });
 }
 
-async function resizeIfLow(file: File, resolutionType: ResolutionType): Promise<File> {
-  if (resolutionType !== "low") return file;
+/**
+ * Normaliza a imagem antes do upload:
+ * - Sempre compoem fundo branco (resolve PNG transparente que vira preto no ML)
+ * - Sempre converte para JPEG
+ * - Redimensiona para no maximo MAX_LOW_WIDTH se for low-res
+ */
+async function processImage(file: File, resolutionType: ResolutionType): Promise<File> {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      if (img.naturalWidth <= MAX_LOW_WIDTH) { resolve(file); return; }
-      const scale = MAX_LOW_WIDTH / img.naturalWidth;
+
+      const isLow = resolutionType === "low";
+      const needsResize = isLow && img.naturalWidth > MAX_LOW_WIDTH;
+      const scale = needsResize ? MAX_LOW_WIDTH / img.naturalWidth : 1;
+
       const canvas = document.createElement("canvas");
-      canvas.width = MAX_LOW_WIDTH;
+      canvas.width = Math.round(img.naturalWidth * scale);
       canvas.height = Math.round(img.naturalHeight * scale);
-      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const ctx = canvas.getContext("2d")!;
+      // Fundo branco: elimina canal alfa de PNGs transparentes
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const quality = isLow ? 0.88 : 0.95;
+      const baseName = file.name.replace(/\.[^.]+$/, "");
       canvas.toBlob(
-        (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg" }) : file),
+        (blob) =>
+          resolve(
+            blob
+              ? new File([blob], baseName + ".jpg", { type: "image/jpeg" })
+              : file
+          ),
         "image/jpeg",
-        0.88
+        quality
       );
     };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
     img.src = url;
   });
 }
@@ -69,7 +91,7 @@ export default function UploadForm() {
         if (ok) {
           valid.push(f);
         } else {
-          rejected.push(`${f.name} (${width}×${height}px — mín. ${MIN_DIM}×${MIN_DIM}px)`);
+          rejected.push(f.name + " (" + width + "x" + height + "px - min. " + MIN_DIM + "x" + MIN_DIM + "px)");
         }
       })
     );
@@ -97,8 +119,8 @@ export default function UploadForm() {
     const productCode = productCodeRef.current?.value.trim() ?? "";
     const resolutionType = resolutionRef.current?.value as ResolutionType;
 
-    if (!productCode) { setState({ ok: false, message: "Informe o código do produto." }); return; }
-    if (!["high", "low"].includes(resolutionType)) { setState({ ok: false, message: "Selecione o tipo de resolução." }); return; }
+    if (!productCode) { setState({ ok: false, message: "Informe o codigo do produto." }); return; }
+    if (!["high", "low"].includes(resolutionType)) { setState({ ok: false, message: "Selecione o tipo de resolucao." }); return; }
     if (files.length === 0) { setState({ ok: false, message: "Selecione ao menos uma imagem." }); return; }
 
     setPending(true);
@@ -117,15 +139,15 @@ export default function UploadForm() {
       const position = startPosition + i;
       setFileProgress((prev) => new Map(prev).set(i, 0));
 
-      const fileToUpload = await resizeIfLow(file, resolutionType);
-      const filePath = buildFilePath(productCode, resolutionType, timestamp, position, file.name);
+      const fileToUpload = await processImage(file, resolutionType);
+      const filePath = buildFilePath(productCode, resolutionType, timestamp, position, fileToUpload.name);
 
       const { error: storageError } = await supabase.storage
         .from("product-assets")
         .upload(filePath, fileToUpload, {
           upsert: false,
           contentType: fileToUpload.type,
-          // @ts-expect-error — onUploadProgress is supported by Supabase JS v2
+          // @ts-expect-error - onUploadProgress is supported by Supabase JS v2
           onUploadProgress: (evt: { loaded: number; total: number }) => {
             const pct = Math.round((evt.loaded / evt.total) * 100);
             setFileProgress((prev) => new Map(prev).set(i, pct));
@@ -169,7 +191,7 @@ export default function UploadForm() {
       errors,
       message:
         results.length > 0
-          ? `${results.length} imagem(ns) enviada(s) com sucesso.`
+          ? results.length + " imagem(ns) enviada(s) com sucesso."
           : "Nenhuma imagem foi enviada.",
     });
   }
@@ -181,7 +203,7 @@ export default function UploadForm() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Código do produto <span className="text-brand">*</span>
+              Codigo do produto <span className="text-brand">*</span>
             </label>
             <input
               ref={productCodeRef}
@@ -195,7 +217,7 @@ export default function UploadForm() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Resolução <span className="text-brand">*</span>
+              Resolucao <span className="text-brand">*</span>
             </label>
             <select
               ref={resolutionRef}
@@ -205,8 +227,8 @@ export default function UploadForm() {
               className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
             >
               <option value="" disabled>Selecione...</option>
-              <option value="high">Alta resolução</option>
-              <option value="low">Baixa resolução</option>
+              <option value="high">Alta resolucao</option>
+              <option value="low">Baixa resolucao</option>
             </select>
           </div>
         </div>
@@ -221,14 +243,14 @@ export default function UploadForm() {
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => { e.preventDefault(); setDragging(false); void addFiles(e.dataTransfer.files); }}
             onClick={() => fileInputRef.current?.click()}
-            className={`cursor-pointer border-2 border-dashed rounded-xl py-10 flex flex-col items-center justify-center gap-2 transition ${
+            className={"cursor-pointer border-2 border-dashed rounded-xl py-10 flex flex-col items-center justify-center gap-2 transition " + (
               dragging
                 ? "border-brand bg-red-50 dark:bg-red-950/20"
                 : "border-gray-300 dark:border-gray-700 hover:border-brand hover:bg-gray-50 dark:hover:bg-gray-800/50"
-            }`}
+            )}
           >
             <svg
-              className={`w-8 h-8 ${dragging ? "text-brand" : "text-gray-400 dark:text-gray-500"}`}
+              className={"w-8 h-8 " + (dragging ? "text-brand" : "text-gray-400 dark:text-gray-500")}
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
@@ -237,7 +259,7 @@ export default function UploadForm() {
               Arraste imagens aqui ou{" "}
               <span className="text-brand font-medium">clique para selecionar</span>
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">JPG, PNG, WEBP — até 50 MB cada</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">JPG, PNG, WEBP - ate 50 MB cada</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -269,7 +291,7 @@ export default function UploadForm() {
                     onClick={(e) => { e.stopPropagation(); removeFile(i); }}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
                   >
-                    ×
+                    x
                   </button>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
                     {file.name}
@@ -283,7 +305,7 @@ export default function UploadForm() {
         {/* Dimension errors */}
         {dimensionErrors.length > 0 && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 space-y-0.5">
-            <p className="text-xs font-semibold text-orange-700 mb-1">Imagens rejeitadas (abaixo do mínimo):</p>
+            <p className="text-xs font-semibold text-orange-700 mb-1">Imagens rejeitadas (abaixo do minimo):</p>
             {dimensionErrors.map((msg, i) => (
               <p key={i} className="text-xs text-orange-700">{msg}</p>
             ))}
@@ -299,12 +321,12 @@ export default function UploadForm() {
                 <div key={i}>
                   <div className="flex justify-between text-xs text-gray-500 mb-0.5">
                     <span className="truncate max-w-[70%]">{file.name}</span>
-                    <span>{pct < 0 ? "erro" : `${pct}%`}</span>
+                    <span>{pct < 0 ? "erro" : (pct + "%")}</span>
                   </div>
                   <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div
-                      className={`h-full transition-all rounded-full ${pct < 0 ? "bg-red-500" : "bg-brand"}`}
-                      style={{ width: `${Math.max(0, pct)}%` }}
+                      className={"h-full transition-all rounded-full " + (pct < 0 ? "bg-red-500" : "bg-brand")}
+                      style={{ width: Math.max(0, pct) + "%" }}
                     />
                   </div>
                 </div>
@@ -338,7 +360,7 @@ export default function UploadForm() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              Enviar {files.length > 0 ? `${files.length} imagem(ns)` : "imagens"}
+              {files.length > 0 ? ("Enviar " + files.length + " imagem(ns)") : "Enviar imagens"}
             </>
           )}
         </button>
@@ -377,7 +399,7 @@ export default function UploadForm() {
           </p>
           {state.errors.map((err, i) => (
             <p key={i} className="text-xs text-red-700">
-              <span className="font-medium">{err.fileName}</span> — {err.message}
+              <span className="font-medium">{err.fileName}</span>{" - "}{err.message}
             </p>
           ))}
         </div>
@@ -400,7 +422,7 @@ function CopyButton({ url }: { url: string }) {
     <button
       type="button"
       onClick={copy}
-      title="Copiar link público"
+      title="Copiar link publico"
       className="shrink-0 text-xs text-brand hover:text-brand-dark font-medium transition"
     >
       {copied ? "Copiado!" : "Copiar link"}

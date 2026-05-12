@@ -1,11 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import PublicGallery from "./PublicGallery";
+import ForceLight from "./ForceLight";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Repositório de Imagens — Spark Eletrônica",
-  description:
-    "Banco oficial de imagens de produtos da Spark Eletrônica para integradores e parceiros comerciais.",
+  title: "Repositorio de Imagens - Spark Eletronica",
+  description: "Banco oficial de imagens de produtos da Spark Eletronica para integradores e parceiros comerciais.",
 };
 
 const LOGO_URL =
@@ -31,66 +31,71 @@ export default async function PublicPage() {
     .order("product_code");
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
-      {/* Header */}
-      <header className="bg-black text-white sticky top-0 z-20 border-b border-gray-800">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+    <ForceLight>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+
+        {/* Header - fundo branco, logo em cores naturais */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+            <a
+              href="https://usinaspark.com.br"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={LOGO_URL}
+                alt="Spark Eletronica"
+                className="h-8 w-auto object-contain"
+              />
+            </a>
+            <span className="hidden sm:block text-xs text-gray-400 flex-1">
+              Repositorio de Imagens
+            </span>
+            <a
+              href="/login"
+              className="shrink-0 text-xs font-semibold border border-gray-300 hover:border-brand hover:text-brand text-gray-600 px-3 py-1.5 rounded-lg transition"
+            >
+              Acessar painel
+            </a>
+          </div>
+        </header>
+
+        {/* Hero - fundo vermelho da marca */}
+        <div className="bg-brand text-white py-10 px-4 sm:px-6">
+          <div className="max-w-6xl mx-auto">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+              Repositorio de Imagens
+            </h1>
+            <p className="text-red-100 text-sm max-w-xl leading-relaxed">
+              Banco oficial de imagens de produtos da Spark Eletronica para
+              integradores e parceiros comerciais. Faca o download em alta ou
+              baixa resolucao.
+            </p>
+          </div>
+        </div>
+
+        {/* Gallery */}
+        <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-8">
+          <PublicGallery products={products ?? []} />
+        </main>
+
+        {/* Footer */}
+        <footer className="border-t border-gray-200 py-6 px-4 text-center text-xs text-gray-400">
           <a
             href="https://usinaspark.com.br"
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0"
+            className="hover:text-brand transition"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={LOGO_URL}
-              alt="Spark Eletrônica"
-              className="h-8 w-auto object-contain brightness-0 invert"
-            />
+            usinaspark.com.br
           </a>
-          <span className="hidden sm:block text-xs text-gray-400 flex-1">
-            Repositório de Imagens
-          </span>
-          <a
-            href="/login"
-            className="shrink-0 text-xs font-semibold border border-gray-600 hover:border-brand hover:text-brand px-3 py-1.5 rounded-lg transition"
-          >
-            Acessar painel →
-          </a>
-        </div>
-      </header>
+          {" - "}
+          {new Date().getFullYear()} Spark Eletronica. Todos os direitos reservados.
+        </footer>
 
-      {/* Hero */}
-      <div className="bg-black text-white py-10 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-            Repositório de Imagens
-          </h1>
-          <p className="text-gray-400 text-sm max-w-xl leading-relaxed">
-            Banco oficial de imagens de produtos da Spark Eletrônica para
-            integradores e parceiros comerciais. Faça o download em alta ou
-            baixa resolução.
-          </p>
-        </div>
       </div>
-
-      {/* Gallery */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-8">
-        <PublicGallery products={products ?? []} />
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-800 py-6 px-4 text-center text-xs text-gray-400 dark:text-gray-600">
-        <a
-          href="https://usinaspark.com.br"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-brand transition"
-        >
-          usinaspark.com.br
-        </a>
-        {" · "}© {new Date().getFullYear()} Spark Eletrônica. Todos os direitos reservados.
-      </footer>
-    </div>
+    </ForceLight>
   );
 }
