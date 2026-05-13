@@ -3,16 +3,12 @@
 import { useActionState } from "react";
 
 type LoginAction = (
+  prev: { error: string } | undefined,
   formData: FormData
 ) => Promise<{ error: string } | undefined>;
 
 export default function LoginForm({ action }: { action: LoginAction }) {
-  const [state, formAction, pending] = useActionState(
-    async (_prev: { error: string } | undefined, formData: FormData) => {
-      return action(formData);
-    },
-    undefined
-  );
+  const [state, formAction, pending] = useActionState(action, undefined);
 
   return (
     <form action={formAction} className="space-y-4">
