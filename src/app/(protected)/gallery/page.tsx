@@ -27,15 +27,18 @@ export default async function GalleryPage({ searchParams }: Props) {
   // "Sem imagens": fetch all codprod from produto, subtract those with images
   if (activeFilter === "sem-imagens") {
     const [{ data: allProducts }, { data: withImages }] = await Promise.all([
-      supabase.from("produto").select("codprod"),
+      supabase.from("produto").select("codprod, descrprod"),
       supabase.from("ext_product_images").select("product_code").is("deleted_at", null),
     ]);
     const codesWithImages = new Set((withImages ?? []).map((r) => String(r.product_code)));
     let noImageProducts = (allProducts ?? [])
-      .map((r) => String(r.codprod))
-      .filter((c) => !codesWithImages.has(c));
+      .map((r) => ({ code: String(r.codprod), name: r.descrprod as string | null }))
+      .filter((r) => !codesWithImages.has(r.code));
     if (q?.trim()) {
-      noImageProducts = noImageProducts.filter((c) => c.includes(q.trim()));
+      const search = q.trim().toLowerCase();
+      noImageProducts = noImageProducts.filter(
+        (r) => r.code.includes(search) || r.name?.toLowerCase().includes(search)
+      );
     }
     return (
       <GalleryLayout q={q} activeFilter={activeFilter}>
@@ -43,7 +46,7 @@ export default async function GalleryPage({ searchParams }: Props) {
           <EmptyState q={q} filter={activeFilter} />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {noImageProducts.map((code) => (
+            {noImageProducts.map(({ code, name }) => (
               <Link
                 key={code}
                 href={`/upload?code=${encodeURIComponent(code)}`}
@@ -56,6 +59,7 @@ export default async function GalleryPage({ searchParams }: Props) {
                 </div>
                 <div className="p-3">
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Cód: {code}</p>
+                  {name && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{name}</p>}
                   <p className="text-xs text-gray-400 mt-0.5">0 imagens</p>
                   <p className="text-xs text-brand mt-1 group-hover:underline">Fazer upload →</p>
                 </div>
@@ -69,10 +73,13 @@ export default async function GalleryPage({ searchParams }: Props) {
 
   let query = supabase
     .from("ext_product_images_summary")
-    .select("product_code, total_images, high_count, low_count, thumb_url", { count: "exact" })
+    .select("product_code, product_name, total_images, high_count, low_count, thumb_url", { count: "exact" })
     .order("product_code");
 
-  if (q?.trim()) query = query.ilike("product_code", `%${q.trim()}%`);
+  if (q?.trim()) {
+    const search = q.trim();
+    query = query.or(`product_code.ilike.%${search}%,product_name.ilike.%${search}%`);
+  }
   if (activeFilter === "apenas-high") query = query.gt("high_count", 0);
   if (activeFilter === "apenas-low") query = query.gt("low_count", 0);
   if (activeFilter === "recentes") {
@@ -114,6 +121,9 @@ export default async function GalleryPage({ searchParams }: Props) {
                 </div>
                 <div className="p-3">
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Cód: {row.product_code}</p>
+                  {row.product_name && (
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{row.product_name as string}</p>
+                  )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.total_images as number} imagem(ns)</p>
                   <div className="flex gap-1 mt-1.5 flex-wrap">
                     {hasHigh && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
@@ -174,7 +184,7 @@ function GalleryLayout({
           <input
             name="q"
             defaultValue={q ?? ""}
-            placeholder="Buscar por código..."
+            placeholder="Buscar por código ou nome..."
             className="w-52 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
           />
           <button type="submit" className="bg-brand hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2 rounded-lg transition">

@@ -12,13 +12,22 @@ export default async function ProductDetailPage({ params }: Props) {
   const code = decodeURIComponent(productCode);
   const supabase = await createClient();
 
-  const { data: images } = await supabase
-    .from("ext_product_images")
-    .select("id, product_code, file_path, resolution_type, position, public_url, created_at")
-    .eq("product_code", code)
-    .is("deleted_at", null)
-    .order("resolution_type")
-    .order("position");
+  const [{ data: images }, { data: productRow }] = await Promise.all([
+    supabase
+      .from("ext_product_images")
+      .select("id, product_code, file_path, resolution_type, position, public_url, created_at")
+      .eq("product_code", code)
+      .is("deleted_at", null)
+      .order("resolution_type")
+      .order("position"),
+    supabase
+      .from("produto")
+      .select("descrprod")
+      .eq("codprod", Number(code))
+      .maybeSingle(),
+  ]);
+
+  const productName = (productRow as { descrprod: string | null } | null)?.descrprod ?? null;
 
   if (!images || images.length === 0) notFound();
 
@@ -52,7 +61,9 @@ export default async function ProductDetailPage({ params }: Props) {
           Galeria
         </Link>
         <span>/</span>
-        <span className="text-gray-900 dark:text-gray-100 font-medium">Cód: {code}</span>
+        <span className="text-gray-900 dark:text-gray-100 font-medium">
+          Cód: {code}{productName ? ` — ${productName}` : ""}
+        </span>
       </div>
 
       {/* Header */}
@@ -61,6 +72,9 @@ export default async function ProductDetailPage({ params }: Props) {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Produto {code}
           </h2>
+          {productName && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{productName}</p>
+          )}
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap gap-1.5 items-center">
             {highCount > 0 && (
               <span className="text-[11px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta ({highCount})</span>
