@@ -3,6 +3,8 @@ import PublicGallery from "./PublicGallery";
 import ForceLight from "./ForceLight";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Repositorio de Imagens - Spark Eletronica",
   description: "Banco oficial de imagens de produtos da Spark Eletronica para integradores e parceiros comerciais.",
