@@ -73,12 +73,24 @@ export default async function GalleryPage({ searchParams }: Props) {
 
   let query = supabase
     .from("ext_product_images_summary")
-    .select("product_code, product_name, total_images, high_count, low_count, thumb_url", { count: "exact" })
+    .select("product_code, total_images, high_count, low_count, thumb_url", { count: "exact" })
     .order("product_code");
 
   if (q?.trim()) {
-    const search = q.trim();
-    query = query.or(`product_code.ilike.%${search}%,product_name.ilike.%${search}%`);
+    const search = q.trim().toLowerCase();
+    // Search by name: get matching codprod from produto first
+    const { data: nameMatches } = await supabase
+      .from("produto")
+      .select("codprod")
+      .ilike("descrprod", `%${search}%`);
+    const codesByName = (nameMatches ?? []).map((r) => String(r.codprod));
+    if (codesByName.length > 0) {
+      query = query.or(
+        `product_code.ilike.%${search}%,product_code.in.(${codesByName.join(",")})`
+      );
+    } else {
+      query = query.ilike("product_code", `%${search}%`);
+    }
   }
   if (activeFilter === "apenas-high") query = query.gt("high_count", 0);
   if (activeFilter === "apenas-low") query = query.gt("low_count", 0);
@@ -88,6 +100,15 @@ export default async function GalleryPage({ searchParams }: Props) {
   }
 
   const { data: products, count: totalCount } = await query.range(offset, offset + PAGE_SIZE - 1);
+
+  // Fetch product names for the current page results
+  const pageCodes = (products ?? []).map((r) => Number(r.product_code)).filter(Boolean);
+  const { data: pageNames } = pageCodes.length > 0
+    ? await supabase.from("produto").select("codprod, descrprod").in("codprod", pageCodes)
+    : { data: [] as { codprod: number; descrprod: string | null }[] };
+  const nameMap = Object.fromEntries(
+    (pageNames ?? []).map((r) => [String(r.codprod), r.descrprod ?? null])
+  );
 
   const totalPages = Math.ceil((totalCount ?? 0) / PAGE_SIZE);
 
@@ -121,8 +142,8 @@ export default async function GalleryPage({ searchParams }: Props) {
                 </div>
                 <div className="p-3">
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Cód: {row.product_code}</p>
-                  {row.product_name && (
-                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{row.product_name as string}</p>
+                  {nameMap[row.product_code] && (
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{nameMap[row.product_code]}</p>
                   )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.total_images as number} imagem(ns)</p>
                   <div className="flex gap-1 mt-1.5 flex-wrap">
