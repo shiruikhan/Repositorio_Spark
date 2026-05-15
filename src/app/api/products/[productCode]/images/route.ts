@@ -25,6 +25,15 @@ export async function GET(
     );
   }
 
+  // Optional quality filter — "high" | "low"; omit to return all
+  const quality = req.nextUrl.searchParams.get("quality");
+  if (quality !== null && quality !== "high" && quality !== "low") {
+    return NextResponse.json(
+      { error: 'quality must be "high" or "low"' },
+      { status: 400, headers: CORS }
+    );
+  }
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -54,13 +63,20 @@ export async function GET(
       .then(() => {});
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("ext_product_images")
     .select("id, resolution_type, position, public_url, created_at")
     .eq("product_code", code)
     .is("deleted_at", null)
     .order("resolution_type")
     .order("position");
+
+  // When quality is specified, include only that resolution plus manuals
+  if (quality) {
+    query = query.or(`resolution_type.eq.${quality},resolution_type.eq.manual`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json(
@@ -75,6 +91,7 @@ export async function GET(
   return NextResponse.json(
     {
       product_code: code,
+      quality: quality ?? "all",
       total: images.length,
       images,
       manuals,

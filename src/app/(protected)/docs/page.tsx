@@ -5,27 +5,39 @@ const BASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 const CURL = (code: string) =>
-  `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images"`;
+  `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images"\n\n` +
+  `# Filtrar apenas alta resolução:\ncurl -s "https://repositorio.spark.ind.br/api/products/${code}/images?quality=high"\n\n` +
+  `# Filtrar apenas baixa resolução:\ncurl -s "https://repositorio.spark.ind.br/api/products/${code}/images?quality=low"`;
 
 const CURL_WITH_KEY = (code: string) =>
-  `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images" \\\n  -H "X-API-Key: SUA_CHAVE_API"`;
+  `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images?quality=high" \\\n  -H "X-API-Key: SUA_CHAVE_API"`;
 
-const FETCH_JS = (code: string) => `const res = await fetch(
+const FETCH_JS = (code: string) => `// Todas as imagens
+const res = await fetch(
   "https://repositorio.spark.ind.br/api/products/${code}/images"
 );
-const { product_code, total, images } = await res.json();
+const { product_code, quality, total, images, manuals } = await res.json();
 
-// images[0].public_url  → link da imagem
-// images[0].resolution_type → "high" | "low"`;
+// Somente alta resolução
+const resHigh = await fetch(
+  "https://repositorio.spark.ind.br/api/products/${code}/images?quality=high"
+);
+
+// images[0].public_url       → URL permanente da imagem
+// images[0].resolution_type  → "high" | "low"
+// manuals[0].public_url      → URL do manual do produto`;
 
 const SUPABASE_DIRECT = (code: string) =>
-  `${BASE}/rest/v1/ext_product_images` +
+  `# Todas as imagens:\n${BASE}/rest/v1/ext_product_images` +
   `?product_code=eq.${code}&select=id,resolution_type,position,public_url,created_at` +
+  `\n\n# Somente alta resolução:\n${BASE}/rest/v1/ext_product_images` +
+  `?product_code=eq.${code}&resolution_type=eq.high&select=id,resolution_type,position,public_url,created_at` +
   `\n\n# Header obrigatório:\napikey: ${ANON_KEY || "sua_anon_key"}`;
 
 const EXAMPLE_RESPONSE = JSON.stringify(
   {
     product_code: "1234",
+    quality: "all",
     total: 2,
     images: [
       {
@@ -40,6 +52,15 @@ const EXAMPLE_RESPONSE = JSON.stringify(
         resolution_type: "low",
         position: 0,
         public_url: "https://xxx.supabase.co/storage/v1/object/public/product-assets/1234/1234_low_1715000000_0.jpg",
+        created_at: "2026-05-08T12:00:00.000Z",
+      },
+    ],
+    manuals: [
+      {
+        id: "uuid-3",
+        resolution_type: "manual",
+        position: 0,
+        public_url: "https://xxx.supabase.co/storage/v1/object/public/product-assets/1234/1234_manual_1715000000_0.pdf",
         created_at: "2026-05-08T12:00:00.000Z",
       },
     ],
@@ -109,7 +130,8 @@ export default async function DocsPage() {
             </code>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Retorna todas as imagens de um produto em ordem de resolução e posição.
+            Retorna imagens de um produto em ordem de resolução e posição.
+            Use <code className="font-mono text-xs">?quality=high</code> ou <code className="font-mono text-xs">?quality=low</code> para filtrar por resolução.
             Endpoint público — nenhuma autenticação necessária. O header <code className="font-mono text-xs">X-API-Key</code> é opcional e registra o uso da chave.
           </p>
 
@@ -126,6 +148,17 @@ export default async function DocsPage() {
                 <td className="px-3 py-2 font-mono text-brand">productCode</td>
                 <td className="px-3 py-2 text-gray-500 dark:text-gray-400">path param</td>
                 <td className="px-3 py-2 text-gray-600 dark:text-gray-400">Código do produto (URL-encoded)</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2 font-mono text-brand">quality</td>
+                <td className="px-3 py-2 text-gray-500 dark:text-gray-400">query (opcional)</td>
+                <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                  Filtra por resolução:{" "}
+                  <code className="font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">high</code>{" "}
+                  ou{" "}
+                  <code className="font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">low</code>.
+                  Omitir retorna todas. Manuais são sempre incluídos.
+                </td>
               </tr>
               <tr>
                 <td className="px-3 py-2 font-mono text-brand">X-API-Key</td>
@@ -151,12 +184,17 @@ export default async function DocsPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
               {[
                 ["product_code", "string", "Código do produto consultado"],
-                ["total", "number", "Total de imagens encontradas"],
+                ["quality", '"high" | "low" | "all"', 'Filtro aplicado ("all" quando omitido)'],
+                ["total", "number", "Total de imagens no array images (excluí manuais)"],
                 ["images[].id", "string (uuid)", "Identificador único da imagem"],
                 ["images[].resolution_type", '"high" | "low"', "Tipo de resolução"],
                 ["images[].position", "number", "Ordem dentro do produto"],
                 ["images[].public_url", "string", "URL pública permanente do arquivo"],
                 ["images[].created_at", "ISO 8601", "Data de criação"],
+                ["manuals[]", "array", "Manuais do produto — sempre retornados, independente do filtro quality"],
+                ["manuals[].id", "string (uuid)", "Identificador único do manual"],
+                ["manuals[].public_url", "string", "URL pública permanente do manual"],
+                ["manuals[].created_at", "ISO 8601", "Data de criação"],
               ].map(([field, type, desc]) => (
                 <tr key={field}>
                   <td className="px-3 py-2 font-mono text-brand">{field}</td>
@@ -198,11 +236,15 @@ export default async function DocsPage() {
             A <code className="font-mono">public_url</code> é a referência oficial e permanente para uso no marketplace.
           </li>
           <li>
-            Imagens de <strong>alta resolução</strong> ({`"high"`}) são mantidas no original — use para listagem de produtos.
+            Use <code className="font-mono">?quality=high</code> para listagem de produtos — imagens originais em alta resolução.
           </li>
           <li>
-            Imagens de <strong>baixa resolução</strong> ({`"low"`}) são indicadas para miniaturas e pré-visualizações.
+            Use <code className="font-mono">?quality=low</code> para miniaturas e pré-visualizações rápidas.
           </li>
+          <li>
+            Manuais (<code className="font-mono">manuals[]</code>) são sempre retornados independente do filtro <code className="font-mono">quality</code>.
+          </li>
+          <li>Valor inválido de <code className="font-mono">quality</code> retorna <code className="font-mono">400 Bad Request</code>.</li>
           <li>Cache de 60 s no servidor, stale por até 5 min (CDN).</li>
         </ul>
       </div>
