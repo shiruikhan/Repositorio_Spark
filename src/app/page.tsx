@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import PublicGallery from "./PublicGallery";
-import ForceLight from "./ForceLight";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +33,7 @@ export default async function PublicPage() {
     .order("product_code");
 
   return (
-    <ForceLight>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
 
         {/* Header - fundo branco, logo em cores naturais */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
@@ -98,7 +96,6 @@ export default async function PublicPage() {
           {new Date().getFullYear()} Spark Eletronica. Todos os direitos reservados.
         </footer>
 
-      </div>
-    </ForceLight>
+    </div>
   );
 }
