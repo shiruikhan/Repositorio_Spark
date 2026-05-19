@@ -5,7 +5,9 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=300, stale-while-revalidate=600" },
+        ],
       },
     ];
   },

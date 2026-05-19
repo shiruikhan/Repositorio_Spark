@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
@@ -51,12 +52,15 @@ export default async function DashboardPage() {
                 className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"
               >
                 {img.public_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={img.public_url}
-                    alt={img.product_code}
-                    className="w-full h-32 object-cover"
-                  />
+                  <div className="relative w-full h-32">
+                    <Image
+                      src={img.public_url}
+                      alt={img.product_code}
+                      fill
+                      sizes="(max-width: 640px) 50vw, 33vw"
+                      className="object-cover"
+                    />
+                  </div>
                 ) : (
                   <div className="w-full h-32 bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 dark:text-gray-600 text-xs">
                     sem prévia

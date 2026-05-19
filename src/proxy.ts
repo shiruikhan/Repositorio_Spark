@@ -2,6 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Public page has no auth-gated content — skip Supabase round-trip to minimise TTFB
+  if (pathname === "/") {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   let user = null;
@@ -32,8 +39,6 @@ export async function proxy(request: NextRequest) {
   } catch {
     // Supabase unreachable or misconfigured — treat as unauthenticated
   }
-
-  const { pathname } = request.nextUrl;
 
   if (!user && pathname !== "/login" && pathname !== "/") {
     const url = request.nextUrl.clone();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Image from "next/image";
 import type { ProductSummary } from "./page";
 
 type ImageItem = {
@@ -123,10 +124,15 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
               className="group text-left bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:border-brand hover:shadow-md transition"
             >
               {/* Thumbnail */}
-              <div className="w-full h-36 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+              <div className="relative w-full h-36 bg-gray-100 dark:bg-gray-800 overflow-hidden">
                 {p.thumb_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.thumb_url} alt={`Produto ${p.product_code}`} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                  <Image
+                    src={p.thumb_url}
+                    alt={`Produto ${p.product_code}`}
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                    className="object-cover group-hover:scale-105 transition duration-300"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
                     <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -314,10 +320,15 @@ function ImageCard({ img }: { img: ImageItem }) {
 
   return (
     <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-      <div className="w-full h-32 bg-gray-100 dark:bg-gray-700 overflow-hidden">
+      <div className="relative w-full h-32 bg-gray-100 dark:bg-gray-700 overflow-hidden">
         {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt={filename} className="w-full h-full object-contain p-1" />
+          <Image
+            src={url}
+            alt={filename}
+            fill
+            sizes="(max-width: 640px) 50vw, 33vw"
+            className="object-contain p-1"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600 text-xs">
             sem previa

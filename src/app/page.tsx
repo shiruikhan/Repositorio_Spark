@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import Image from "next/image";
 import PublicGallery from "./PublicGallery";
 import type { Metadata } from "next";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // ISR: re-render in background every 5 min
 
 export const metadata: Metadata = {
   title: "Repositorio de Imagens - Spark Eletronica",
@@ -44,11 +45,13 @@ export default async function PublicPage() {
               rel="noopener noreferrer"
               className="shrink-0"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={LOGO_URL}
                 alt="Spark Eletronica"
+                width={160}
+                height={32}
                 className="h-8 w-auto object-contain"
+                priority
               />
             </a>
             <span className="hidden sm:block text-xs text-gray-400 flex-1">
