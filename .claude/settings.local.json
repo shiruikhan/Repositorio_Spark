@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m 'perf: optimise public page TTFB, CLS, LCP and image delivery *)"
+    ]
+  }
+}
