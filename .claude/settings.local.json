@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git add *)",
-      "Bash(git commit -m 'perf: optimise public page TTFB, CLS, LCP and image delivery *)",
-      "mcp__d02602c0-f879-47c8-b376-9b3c45b6a2a8__execute_sql"
-    ]
-  }
-}
