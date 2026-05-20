@@ -42,22 +42,13 @@ export async function saveImageRecord(
 
     if (!user) return { ok: false, message: "Sessão expirada. Faça login novamente." };
 
-    // Valida que o código corresponde a um produto real do catálogo
-    // (evita registros órfãos por digitação incorreta no formulário).
+    // Sanidade do código: precisa ser inteiro positivo (evita registros
+    // órfãos por digitação incorreta). Não exige presença no catálogo
+    // `produto`, pois o módulo gerencia imagens de produtos que podem
+    // ainda não estar no catálogo interno de 82 itens.
     const codNum = Number(payload.productCode);
     if (!Number.isInteger(codNum) || codNum <= 0) {
       return { ok: false, message: `Código de produto inválido: "${payload.productCode}".` };
-    }
-    const { data: produto } = await supabase
-      .from("produto")
-      .select("codprod")
-      .eq("codprod", codNum)
-      .maybeSingle();
-    if (!produto) {
-      return {
-        ok: false,
-        message: `Produto ${payload.productCode} não encontrado no catálogo.`,
-      };
     }
 
     const { error } = await supabase.from("ext_product_images").insert({
