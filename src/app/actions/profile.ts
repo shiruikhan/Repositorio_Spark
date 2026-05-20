@@ -1,13 +1,16 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 function makeRandomKey(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  // Alfabeto base32 (32 chars) — `byte & 31` gera índice uniforme, sem viés de módulo.
+  const chars = "abcdefghijklmnopqrstuvwxyz234567";
+  const bytes = randomBytes(32);
   let key = "spark_";
-  for (let i = 0; i < 32; i++) {
-    key += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < bytes.length; i++) {
+    key += chars[bytes[i] & 31];
   }
   return key;
 }

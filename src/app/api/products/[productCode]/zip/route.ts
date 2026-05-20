@@ -8,6 +8,10 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+// Limites defensivos — o ZIP é montado inteiro em memória.
+const MAX_IMAGES = 200;
+const MAX_TOTAL_BYTES = 200 * 1024 * 1024; // 200 MB
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
@@ -26,9 +30,11 @@ export async function GET(
     );
   }
 
+  // SELECT em ext_product_images é público (RLS) — a chave anônima basta,
+  // evitando expor a service role neste endpoint público.
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   const { data, error } = await supabase
@@ -37,7 +43,8 @@ export async function GET(
     .eq("product_code", code)
     .is("deleted_at", null)
     .order("resolution_type")
-    .order("position");
+    .order("position")
+    .limit(MAX_IMAGES);
 
   if (error) {
     return NextResponse.json(
@@ -54,14 +61,18 @@ export async function GET(
   }
 
   const zip = new JSZip();
+  let totalBytes = 0;
 
   await Promise.all(
     data.map(async (img) => {
       if (!img.public_url) return;
+      if (totalBytes >= MAX_TOTAL_BYTES) return;
       try {
         const res = await fetch(img.public_url);
         if (!res.ok) return;
         const buffer = await res.arrayBuffer();
+        totalBytes += buffer.byteLength;
+        if (totalBytes > MAX_TOTAL_BYTES) return;
         const filename = img.file_path.split("/").pop() ?? img.id;
         const folder =
           img.resolution_type === "high"    ? "alta_resolucao" :

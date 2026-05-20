@@ -54,8 +54,7 @@ export async function createUser(
   if (data.user) {
     await admin
       .from("cliente")
-      .upsert({ id: data.user.id, email: data.user.email, is_admin: isAdmin })
-      .eq("id", data.user.id);
+      .upsert({ id: data.user.id, email: data.user.email, is_admin: isAdmin });
   }
 
   revalidatePath("/admin");

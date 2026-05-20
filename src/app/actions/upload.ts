@@ -42,6 +42,24 @@ export async function saveImageRecord(
 
     if (!user) return { ok: false, message: "Sessão expirada. Faça login novamente." };
 
+    // Valida que o código corresponde a um produto real do catálogo
+    // (evita registros órfãos por digitação incorreta no formulário).
+    const codNum = Number(payload.productCode);
+    if (!Number.isInteger(codNum) || codNum <= 0) {
+      return { ok: false, message: `Código de produto inválido: "${payload.productCode}".` };
+    }
+    const { data: produto } = await supabase
+      .from("produto")
+      .select("codprod")
+      .eq("codprod", codNum)
+      .maybeSingle();
+    if (!produto) {
+      return {
+        ok: false,
+        message: `Produto ${payload.productCode} não encontrado no catálogo.`,
+      };
+    }
+
     const { error } = await supabase.from("ext_product_images").insert({
       product_code: payload.productCode,
       file_path: payload.filePath,
