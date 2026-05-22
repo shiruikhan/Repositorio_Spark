@@ -3,7 +3,7 @@ import Image from "next/image";
 import PublicGallery from "./PublicGallery";
 import type { Metadata } from "next";
 
-export const revalidate = 300; // ISR: re-render in background every 5 min
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Repositorio de Imagens - Spark Eletronica",
