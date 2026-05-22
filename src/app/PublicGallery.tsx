@@ -21,6 +21,7 @@ type ManualItem = {
 export default function PublicGallery({ products }: { products: ProductSummary[] }) {
   const [search, setSearch] = useState("");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
   const [modalImages, setModalImages] = useState<ImageItem[]>([]);
   const [modalManuals, setModalManuals] = useState<ManualItem[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
@@ -29,20 +30,25 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
   const filtered = useMemo(
     () =>
       search.trim()
-        ? products.filter((p) =>
-            p.product_code.toLowerCase().includes(search.trim().toLowerCase())
-          )
+        ? products.filter((p) => {
+            const s = search.trim().toLowerCase();
+            return (
+              p.product_code.toLowerCase().includes(s) ||
+              (p.product_name ? p.product_name.toLowerCase().includes(s) : false)
+            );
+          })
         : products,
     [products, search]
   );
 
-  async function openModal(code: string) {
-    setSelectedCode(code);
+  async function openModal(product: ProductSummary) {
+    setSelectedCode(product.product_code);
+    setSelectedName(product.product_name ?? null);
     setModalImages([]);
     setModalManuals([]);
     setModalLoading(true);
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(code)}/images`);
+      const res = await fetch(`/api/products/${encodeURIComponent(product.product_code)}/images`);
       const json = await res.json();
       setModalImages(json.images ?? []);
       setModalManuals(json.manuals ?? []);
@@ -56,6 +62,7 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
 
   function closeModal() {
     setSelectedCode(null);
+    setSelectedName(null);
     setModalImages([]);
     setModalManuals([]);
   }
@@ -94,7 +101,7 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por codigo de produto..."
+            placeholder="Buscar por codigo ou nome do produto..."
             className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand focus:ring-1 focus:ring-brand outline-none transition"
           />
           {search && (
@@ -120,7 +127,7 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
           {filtered.map((p) => (
             <button
               key={p.product_code}
-              onClick={() => openModal(p.product_code)}
+              onClick={() => openModal(p)}
               className="group text-left bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:border-brand hover:shadow-md transition"
             >
               {/* Thumbnail */}
@@ -147,6 +154,11 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                   Cod: {p.product_code}
                 </p>
+                {p.product_name && (
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">
+                    {p.product_name}
+                  </p>
+                )}
                 <div className="flex gap-1 mt-1.5 flex-wrap">
                   {p.high_count > 0 && (
                     <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
@@ -184,6 +196,9 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
                 <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
                   Produto {selectedCode}
                 </h2>
+                {selectedName && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{selectedName}</p>
+                )}
                 {!modalLoading && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap gap-1.5 items-center">
                     {highRes.length > 0 && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">{highRes.length} alta res</span>}
