@@ -25,16 +25,40 @@ export default async function GalleryPage({ searchParams }: Props) {
   const offset = (pageNum - 1) * PAGE_SIZE;
   const supabase = await createClient();
 
-  // "Sem imagens": fetch all codprod from produto, subtract those with images
+  // "Sem imagens": busca no banco apenas produtos sem imagem ativa (NOT IN no DB)
   if (activeFilter === "sem-imagens") {
-    const [{ data: allProducts }, { data: withImages }] = await Promise.all([
-      supabase.from("produto").select("codprod, descrprod"),
-      supabase.from("ext_product_images").select("product_code").is("deleted_at", null),
-    ]);
-    const codesWithImages = new Set((withImages ?? []).map((r) => String(r.product_code)));
-    let noImageProducts = (allProducts ?? [])
-      .map((r) => ({ code: String(r.codprod), name: r.descrprod as string | null }))
-      .filter((r) => !codesWithImages.has(r.code));
+    // 1. Apenas os códigos que já têm imagem — conjunto pequeno
+    const { data: withImages } = await supabase
+      .from("ext_product_images")
+      .select("product_code")
+      .is("deleted_at", null);
+
+    const numericCodesWithImages = [
+      ...new Set((withImages ?? []).map((r) => Number(r.product_code)).filter(Boolean)),
+    ];
+
+    // 2. Query produto excluindo esses códigos diretamente no banco
+    let prodQuery = supabase
+      .from("produto")
+      .select("codprod, descrprod")
+      .order("codprod");
+
+    if (numericCodesWithImages.length > 0) {
+      prodQuery = prodQuery.not("codprod", "in", `(${numericCodesWithImages.join(",")})`);
+    }
+
+    if (q?.trim()) {
+      prodQuery = prodQuery.ilike("descrprod", `%${q.trim()}%`);
+    }
+
+    const { data: fetched } = await prodQuery;
+
+    let noImageProducts = (fetched ?? []).map((r) => ({
+      code: String(r.codprod),
+      name: r.descrprod as string | null,
+    }));
+
+    // Busca por código numérico ainda em memória (PostgREST não suporta ilike em bigint)
     if (q?.trim()) {
       const search = q.trim().toLowerCase();
       noImageProducts = noImageProducts.filter(

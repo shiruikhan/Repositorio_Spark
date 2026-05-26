@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Header from "@/components/Header";
 import ThemeProvider from "@/components/ThemeProvider";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default async function ProtectedLayout({
   children,
@@ -25,7 +26,9 @@ export default async function ProtectedLayout({
     <ThemeProvider>
       <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
         <Header userEmail={user.email ?? ""} isAdmin={cliente?.is_admin ?? false} />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
     </ThemeProvider>
   );
