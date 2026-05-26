@@ -34,15 +34,21 @@ export async function GET(
     );
   }
 
-  const supabase = createClient(
+  // Service role apenas para ext_api_keys — reduz blast radius se a rota tiver vulnerabilidade
+  const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  // Anon key suficiente para ext_product_images (SELECT é público via RLS)
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   // Optional API key validation — if header present, validate it
   const apiKey = req.headers.get("X-API-Key");
   if (apiKey) {
-    const { data: keyRow } = await supabase
+    const { data: keyRow } = await supabaseAdmin
       .from("ext_api_keys")
       .select("user_id, last_used_at")
       .eq("api_key", apiKey)
@@ -56,7 +62,7 @@ export async function GET(
     }
 
     // Update last_used_at without blocking the response
-    supabase
+    supabaseAdmin
       .from("ext_api_keys")
       .update({ last_used_at: new Date().toISOString() })
       .eq("api_key", apiKey)

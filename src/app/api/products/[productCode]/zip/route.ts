@@ -63,30 +63,36 @@ export async function GET(
   const zip = new JSZip();
   let totalBytes = 0;
 
-  await Promise.all(
-    data.map(async (img) => {
-      if (!img.public_url) return;
-      if (totalBytes >= MAX_TOTAL_BYTES) return;
-      try {
-        const res = await fetch(img.public_url);
-        if (!res.ok) return;
-        const buffer = await res.arrayBuffer();
-        totalBytes += buffer.byteLength;
-        if (totalBytes > MAX_TOTAL_BYTES) return;
-        const filename = img.file_path.split("/").pop() ?? img.id;
-        const folder =
-          img.resolution_type === "high"   ? "alta_resolucao" :
-          img.resolution_type === "low"    ? "baixa_resolucao" :
-          img.resolution_type === "manual" ? "manuais" :
-          img.resolution_type === "promo"  ? "material_promocional" :
-          img.resolution_type === "video"  ? "videos" :
-          "outros";
-        zip.folder(folder)?.file(filename, buffer);
-      } catch {
-        // skip on error
-      }
-    })
-  );
+  // Limita a concorrência a 5 downloads simultâneos para evitar OOM
+  const CONCURRENCY = 5;
+  for (let i = 0; i < data.length; i += CONCURRENCY) {
+    if (totalBytes >= MAX_TOTAL_BYTES) break;
+    const batch = data.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      batch.map(async (img) => {
+        if (!img.public_url) return;
+        if (totalBytes >= MAX_TOTAL_BYTES) return;
+        try {
+          const res = await fetch(img.public_url);
+          if (!res.ok) return;
+          const buffer = await res.arrayBuffer();
+          totalBytes += buffer.byteLength;
+          if (totalBytes > MAX_TOTAL_BYTES) return;
+          const filename = img.file_path.split("/").pop() ?? img.id;
+          const folder =
+            img.resolution_type === "high"   ? "alta_resolucao" :
+            img.resolution_type === "low"    ? "baixa_resolucao" :
+            img.resolution_type === "manual" ? "manuais" :
+            img.resolution_type === "promo"  ? "material_promocional" :
+            img.resolution_type === "video"  ? "videos" :
+            "outros";
+          zip.folder(folder)?.file(filename, buffer);
+        } catch {
+          // skip on error
+        }
+      })
+    );
+  }
 
   // base64 string avoids Uint8Array type mismatch with NextResponse
   const zipBase64 = await zip.generateAsync({ type: "base64" });
