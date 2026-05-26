@@ -109,18 +109,14 @@ export async function reorderImages(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Sessão expirada." };
 
-  const results = await Promise.all(
-    updates.map(({ id, position }) =>
-      supabase
-        .from("ext_product_images")
-        .update({ position })
-        .eq("id", id)
-        .is("deleted_at", null)
-    )
-  );
+  const { error } = await supabase
+    .from("ext_product_images")
+    .upsert(
+      updates.map(({ id, position }) => ({ id, position })),
+      { onConflict: "id" }
+    );
 
-  const failed = results.find((r) => r.error);
-  if (failed?.error) return { ok: false, message: failed.error.message };
+  if (error) return { ok: false, message: error.message };
 
   revalidatePath(`/gallery/${encodeURIComponent(productCode)}`);
   return { ok: true };

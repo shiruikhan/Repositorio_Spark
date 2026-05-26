@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
       // Força no-store em todas as rotas dinâmicas para evitar
       // cache stale na Hostinger (e qualquer CDN intermediária)
       {
-        source: "/(.*)",
+        // Exclui assets estáticos imutáveis do Next.js — eles têm hash no nome e podem ser cacheados
+        source: "/((?!_next/static|_next/image|favicon).*)",
         headers: [
           { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
           { key: "Surrogate-Control", value: "no-store" },

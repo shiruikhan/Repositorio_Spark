@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { buildFilePath, type ResolutionType } from "@/lib/naming";
 import { saveImageRecord, getNextPosition } from "@/app/actions/upload";
 import type { UploadedImage, UploadError, UploadState } from "@/app/actions/upload";
+import CopyButton from "@/components/CopyButton";
 
 const MIN_DIM = 300;
 const MAX_LOW_WIDTH = 800;
@@ -508,18 +509,3 @@ export default function UploadForm() {
   );
 }
 
-function CopyButton({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-  return (
-    <button type="button" onClick={copy} title="Copiar link publico"
-      className="shrink-0 text-xs text-brand hover:text-brand-dark font-medium transition">
-      {copied ? "Copiado!" : "Copiar link"}
-    </button>
-  );
-}
