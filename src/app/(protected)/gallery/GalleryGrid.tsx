@@ -10,6 +10,8 @@ export interface ProductRow {
   total_images: number;
   high_count: number;
   low_count: number;
+  promo_count: number;
+  video_count: number;
   thumb_url: string | null;
 }
 
@@ -108,8 +110,10 @@ export default function GalleryGrid({ products }: { products: ProductRow[] }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {products.map((row) => {
           const isSelected = selected.has(row.product_code);
-          const hasHigh = row.high_count > 0;
-          const hasLow = row.low_count > 0;
+          const hasHigh  = row.high_count > 0;
+          const hasLow   = row.low_count > 0;
+          const hasPromo = row.promo_count > 0;
+          const hasVideo = row.video_count > 0;
 
           const cardContent = (
             <>
@@ -147,8 +151,10 @@ export default function GalleryGrid({ products }: { products: ProductRow[] }) {
                 )}
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.total_images} imagem(ns)</p>
                 <div className="flex gap-1 mt-1.5 flex-wrap">
-                  {hasHigh && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
-                  {hasLow && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa</span>}
+                  {hasHigh  && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
+                  {hasLow   && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa</span>}
+                  {hasPromo && <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium">Promo</span>}
+                  {hasVideo && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">Vídeo</span>}
                 </div>
               </div>
             </>

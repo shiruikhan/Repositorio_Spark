@@ -85,8 +85,10 @@ export async function GET(
     );
   }
 
-  const images  = data.filter((r) => r.resolution_type !== "manual");
+  const images  = data.filter((r) => r.resolution_type === "high" || r.resolution_type === "low");
   const manuals = data.filter((r) => r.resolution_type === "manual");
+  const promos  = data.filter((r) => r.resolution_type === "promo");
+  const videos  = data.filter((r) => r.resolution_type === "video");
 
   return NextResponse.json(
     {
@@ -95,6 +97,8 @@ export async function GET(
       total: images.length,
       images,
       manuals,
+      promos,
+      videos,
     },
     {
       status: 200,

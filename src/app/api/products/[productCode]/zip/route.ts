@@ -75,9 +75,12 @@ export async function GET(
         if (totalBytes > MAX_TOTAL_BYTES) return;
         const filename = img.file_path.split("/").pop() ?? img.id;
         const folder =
-          img.resolution_type === "high"    ? "alta_resolucao" :
-          img.resolution_type === "manual"  ? "manuais" :
-          "baixa_resolucao";
+          img.resolution_type === "high"   ? "alta_resolucao" :
+          img.resolution_type === "low"    ? "baixa_resolucao" :
+          img.resolution_type === "manual" ? "manuais" :
+          img.resolution_type === "promo"  ? "material_promocional" :
+          img.resolution_type === "video"  ? "videos" :
+          "outros";
         zip.folder(folder)?.file(filename, buffer);
       } catch {
         // skip on error

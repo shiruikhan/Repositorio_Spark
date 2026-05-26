@@ -74,7 +74,7 @@ export default async function GalleryPage({ searchParams }: Props) {
 
   let query = supabase
     .from("ext_product_images_summary")
-    .select("product_code, product_name, total_images, high_count, low_count, thumb_url", { count: "exact" })
+    .select("product_code, product_name, total_images, high_count, low_count, promo_count, video_count, thumb_url", { count: "exact" })
     .order("product_code");
 
   if (q?.trim()) {
@@ -102,9 +102,11 @@ export default async function GalleryPage({ searchParams }: Props) {
             product_code: row.product_code as string,
             product_name: row.product_name as string | null,
             total_images: row.total_images as number,
-            high_count: row.high_count as number,
-            low_count: row.low_count as number,
-            thumb_url: row.thumb_url as string | null,
+            high_count:   row.high_count   as number,
+            low_count:    row.low_count    as number,
+            promo_count:  (row.promo_count  ?? 0) as number,
+            video_count:  (row.video_count  ?? 0) as number,
+            thumb_url:    row.thumb_url    as string | null,
           }))}
         />
       )}

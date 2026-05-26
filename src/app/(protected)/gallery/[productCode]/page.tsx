@@ -34,9 +34,15 @@ export default async function ProductDetailPage({ params }: Props) {
   const highCount   = images.filter((i) => i.resolution_type === "high").length;
   const lowCount    = images.filter((i) => i.resolution_type === "low").length;
   const manualCount = images.filter((i) => i.resolution_type === "manual").length;
-  const manuals     = images.filter((i) => i.resolution_type === "manual");
+  const promoCount  = images.filter((i) => i.resolution_type === "promo").length;
+  const videoCount  = images.filter((i) => i.resolution_type === "video").length;
 
-  const imagesOnly = images.filter((i) => i.resolution_type !== "manual");
+  const manuals = images.filter((i) => i.resolution_type === "manual");
+  const promos  = images.filter((i) => i.resolution_type === "promo");
+  const videos  = images.filter((i) => i.resolution_type === "video");
+
+  // ImageGrid recebe apenas high/low (suporta drag-and-drop)
+  const imagesOnly = images.filter((i) => i.resolution_type === "high" || i.resolution_type === "low");
 
   const apiPreview = JSON.stringify(
     {
@@ -45,9 +51,9 @@ export default async function ProductDetailPage({ params }: Props) {
       images: imagesOnly.map(({ id, resolution_type, position, public_url, created_at }) => ({
         id, resolution_type, position, public_url, created_at,
       })),
-      manuals: manuals.map(({ id, public_url, created_at }) => ({
-        id, public_url, created_at,
-      })),
+      manuals: manuals.map(({ id, public_url, created_at }) => ({ id, public_url, created_at })),
+      promos:  promos.map(({ id, public_url, created_at })  => ({ id, public_url, created_at })),
+      videos:  videos.map(({ id, public_url, created_at })  => ({ id, public_url, created_at })),
     },
     null,
     2
@@ -75,17 +81,13 @@ export default async function ProductDetailPage({ params }: Props) {
           {productName && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{productName}</p>
           )}
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap gap-1.5 items-center">
-            {highCount > 0 && (
-              <span className="text-[11px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta ({highCount})</span>
-            )}
-            {lowCount > 0 && (
-              <span className="text-[11px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa ({lowCount})</span>
-            )}
-            {manualCount > 0 && (
-              <span className="text-[11px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">Manual PDF</span>
-            )}
-          </p>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {highCount   > 0 && <span className="text-[11px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta ({highCount})</span>}
+            {lowCount    > 0 && <span className="text-[11px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa ({lowCount})</span>}
+            {manualCount > 0 && <span className="text-[11px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">Manual PDF ({manualCount})</span>}
+            {promoCount  > 0 && <span className="text-[11px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium">Promo ({promoCount})</span>}
+            {videoCount  > 0 && <span className="text-[11px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">Vídeo ({videoCount})</span>}
+          </div>
         </div>
         <Link
           href="/upload"
@@ -123,6 +125,61 @@ export default async function ProductDetailPage({ params }: Props) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Material Promocional */}
+      {promos.length > 0 && (
+        <div className="bg-pink-50 dark:bg-pink-950/20 border border-pink-200 dark:border-pink-800/40 rounded-xl px-4 py-3 space-y-2">
+          <p className="text-xs font-semibold text-pink-700 dark:text-pink-400 uppercase tracking-wide">Material Promocional</p>
+          {promos.map((item) => {
+            const filename = item.file_path.split("/").pop() ?? item.file_path;
+            const isPdf = filename.toLowerCase().endsWith(".pdf");
+            return (
+              <div key={item.id} className="flex items-center gap-3">
+                {isPdf ? (
+                  <svg className="w-5 h-5 text-pink-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-pink-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                  </svg>
+                )}
+                <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">{filename}</span>
+                {item.public_url && (
+                  <a href={item.public_url} target="_blank" rel="noopener noreferrer" download
+                    className="shrink-0 text-xs font-semibold text-pink-600 hover:text-pink-800 dark:text-pink-400 dark:hover:text-pink-200 border border-pink-300 dark:border-pink-700 px-2.5 py-1 rounded-lg transition">
+                    Download
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Vídeos */}
+      {videos.length > 0 && (
+        <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 rounded-xl px-4 py-3 space-y-2">
+          <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wide">Vídeos do produto</p>
+          {videos.map((item) => {
+            const filename = item.file_path.split("/").pop() ?? item.file_path;
+            return (
+              <div key={item.id} className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">{filename}</span>
+                {item.public_url && (
+                  <a href={item.public_url} target="_blank" rel="noopener noreferrer" download
+                    className="shrink-0 text-xs font-semibold text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 border border-purple-300 dark:border-purple-700 px-2.5 py-1 rounded-lg transition">
+                    Download
+                  </a>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
