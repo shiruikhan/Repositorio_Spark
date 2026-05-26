@@ -3,6 +3,46 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export async function setFeaturedImage(id: string, productCode: string, makeFeatured: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Sessão expirada." };
+
+  if (makeFeatured) {
+    // Remove capa anterior do produto (se houver)
+    await supabase
+      .from("ext_product_images")
+      .update({ is_featured: false })
+      .eq("product_code", productCode)
+      .eq("is_featured", true)
+      .is("deleted_at", null);
+
+    // Define nova capa
+    const { error } = await supabase
+      .from("ext_product_images")
+      .update({ is_featured: true })
+      .eq("id", id)
+      .is("deleted_at", null);
+
+    if (error) return { ok: false, message: error.message };
+  } else {
+    // Remove capa desta imagem (volta para seleção automática)
+    const { error } = await supabase
+      .from("ext_product_images")
+      .update({ is_featured: false })
+      .eq("id", id)
+      .is("deleted_at", null);
+
+    if (error) return { ok: false, message: error.message };
+  }
+
+  revalidatePath(`/gallery/${encodeURIComponent(productCode)}`);
+  revalidatePath("/gallery");
+  revalidatePath("/dashboard");
+  revalidatePath("/");
+  return { ok: true };
+}
+
 export async function deleteProductsBulk(productCodes: string[]) {
   if (!productCodes.length) return { ok: false, message: "Nenhum produto selecionado." };
 

@@ -72,12 +72,20 @@ export default async function DashboardPage() {
                   </p>
                   <span
                     className={`inline-block text-[10px] px-1.5 py-0.5 rounded mt-0.5 font-medium ${
-                      img.resolution_type === "high"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-green-100 text-green-700"
+                      img.resolution_type === "high"    ? "bg-blue-100 text-blue-700"
+                      : img.resolution_type === "low"   ? "bg-green-100 text-green-700"
+                      : img.resolution_type === "manual"? "bg-orange-100 text-orange-700"
+                      : img.resolution_type === "promo" ? "bg-pink-100 text-pink-700"
+                      : img.resolution_type === "video" ? "bg-purple-100 text-purple-700"
+                      : "bg-gray-100 text-gray-600"
                     }`}
                   >
-                    {img.resolution_type === "high" ? "Alta res" : "Baixa res"}
+                    {img.resolution_type === "high"    ? "Alta res"
+                     : img.resolution_type === "low"   ? "Baixa res"
+                     : img.resolution_type === "manual"? "Manual PDF"
+                     : img.resolution_type === "promo" ? "Promo"
+                     : img.resolution_type === "video" ? "Vídeo"
+                     : img.resolution_type}
                   </span>
                 </div>
               </div>

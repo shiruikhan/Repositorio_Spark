@@ -3,7 +3,7 @@
 import { useState, useRef, useTransition } from "react";
 import CopyButton from "@/components/CopyButton";
 import DownloadButton from "@/components/DownloadButton";
-import { deleteImage, reorderImages } from "@/app/actions/images";
+import { deleteImage, reorderImages, setFeaturedImage } from "@/app/actions/images";
 
 export type ImageRow = {
   id: string;
@@ -12,6 +12,7 @@ export type ImageRow = {
   position: number;
   public_url: string | null;
   created_at: string | null;
+  is_featured: boolean;
 };
 
 export default function ImageGrid({
@@ -22,7 +23,28 @@ export default function ImageGrid({
   productCode: string;
 }) {
   const [highRes, setHighRes] = useState(images.filter((i) => i.resolution_type === "high"));
-  const [lowRes, setLowRes] = useState(images.filter((i) => i.resolution_type === "low"));
+  const [lowRes,  setLowRes]  = useState(images.filter((i) => i.resolution_type === "low"));
+
+  // ID da imagem atualmente marcada como capa (compartilhado entre seções)
+  const [featuredId, setFeaturedId] = useState<string | null>(
+    images.find((i) => i.is_featured)?.id ?? null
+  );
+
+  function handleToggleFeatured(img: ImageRow) {
+    const willBeFeatured = featuredId !== img.id;
+
+    // Atualização otimista: reflete imediatamente na UI
+    setFeaturedId(willBeFeatured ? img.id : null);
+
+    // Persiste no banco (fire-and-forget com rollback em erro)
+    setFeaturedImage(img.id, productCode, willBeFeatured).then((res) => {
+      if (!res.ok) {
+        // Reverte estado em caso de erro
+        setFeaturedId(img.is_featured ? img.id : null);
+        alert(res.message ?? "Erro ao definir capa.");
+      }
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -33,6 +55,8 @@ export default function ImageGrid({
           items={highRes}
           setItems={setHighRes}
           productCode={productCode}
+          featuredId={featuredId}
+          onToggleFeatured={handleToggleFeatured}
         />
       )}
       {lowRes.length > 0 && (
@@ -42,6 +66,8 @@ export default function ImageGrid({
           items={lowRes}
           setItems={setLowRes}
           productCode={productCode}
+          featuredId={featuredId}
+          onToggleFeatured={handleToggleFeatured}
         />
       )}
     </div>
@@ -54,12 +80,16 @@ function Section({
   items,
   setItems,
   productCode,
+  featuredId,
+  onToggleFeatured,
 }: {
   title: string;
   badge: "blue" | "green";
   items: ImageRow[];
   setItems: React.Dispatch<React.SetStateAction<ImageRow[]>>;
   productCode: string;
+  featuredId: string | null;
+  onToggleFeatured: (img: ImageRow) => void;
 }) {
   const color = badge === "blue" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700";
   const dragIndex = useRef<number | null>(null);
@@ -95,6 +125,8 @@ function Section({
             key={img.id}
             img={img}
             productCode={productCode}
+            isFeatured={featuredId === img.id}
+            onToggleFeatured={() => onToggleFeatured(img)}
             onDelete={(id) => setItems((prev) => prev.filter((x) => x.id !== id))}
             draggable
             onDragStart={() => handleDragStart(i)}
@@ -110,6 +142,8 @@ function Section({
 function ImageCard({
   img,
   productCode,
+  isFeatured,
+  onToggleFeatured,
   onDelete,
   draggable,
   onDragStart,
@@ -118,6 +152,8 @@ function ImageCard({
 }: {
   img: ImageRow;
   productCode: string;
+  isFeatured: boolean;
+  onToggleFeatured: () => void;
   onDelete: (id: string) => void;
   draggable: boolean;
   onDragStart: () => void;
@@ -144,9 +180,13 @@ function ImageCard({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition ${isPending ? "opacity-50 pointer-events-none" : ""}`}
+      className={`bg-white dark:bg-gray-900 border rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition ${
+        isFeatured
+          ? "border-yellow-400 ring-2 ring-yellow-300/50 dark:ring-yellow-500/30"
+          : "border-gray-200 dark:border-gray-700"
+      } ${isPending ? "opacity-50 pointer-events-none" : ""}`}
     >
-      {/* Grip indicator */}
+      {/* Grip indicator + position */}
       <div className="flex items-center justify-between px-3 pt-2">
         <svg className="w-4 h-4 text-gray-300 dark:text-gray-600" fill="currentColor" viewBox="0 0 20 20">
           <path d="M7 2a2 2 0 110 4 2 2 0 010-4zm6 0a2 2 0 110 4 2 2 0 010-4zM7 8a2 2 0 110 4 2 2 0 010-4zm6 0a2 2 0 110 4 2 2 0 010-4zM7 14a2 2 0 110 4 2 2 0 010-4zm6 0a2 2 0 110 4 2 2 0 010-4z" />
@@ -154,8 +194,8 @@ function ImageCard({
         <span className="text-[10px] text-gray-400">pos {img.position}</span>
       </div>
 
-      {/* Preview */}
-      <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+      {/* Preview + star overlay */}
+      <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden group/img">
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt={filename} className="w-full h-full object-contain p-2" />
@@ -163,6 +203,37 @@ function ImageCard({
           <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600 text-xs">
             sem prévia
           </div>
+        )}
+
+        {/* Botão capa — sempre visível se ativo, aparece no hover se inativo */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleFeatured(); }}
+          title={isFeatured ? "Remover como capa" : "Definir como capa"}
+          className={`absolute top-2 right-2 p-1.5 rounded-full transition cursor-pointer ${
+            isFeatured
+              ? "bg-yellow-400 text-white shadow-md opacity-100"
+              : "bg-black/40 text-white opacity-0 group-hover/img:opacity-100 hover:bg-yellow-400"
+          }`}
+        >
+          {isFeatured ? (
+            /* Estrela preenchida */
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+            </svg>
+          ) : (
+            /* Estrela vazia */
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+            </svg>
+          )}
+        </button>
+
+        {/* Badge "Capa" visível na imagem */}
+        {isFeatured && (
+          <span className="absolute bottom-2 left-2 text-[10px] font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded shadow-sm">
+            CAPA
+          </span>
         )}
       </div>
 

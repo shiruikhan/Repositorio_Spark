@@ -10,7 +10,7 @@ const MIN_DIM = 300;
 const MAX_LOW_WIDTH = 800;
 const MAX_VIDEO_BYTES = 250 * 1024 * 1024; // 250 MB
 
-function isVideFile(f: File) {
+function isVideoFile(f: File) {
   return f.type.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(f.name);
 }
 function isPdfFile(f: File) {
@@ -91,7 +91,7 @@ export default function UploadForm() {
 
     // --- Video: single file, 250 MB limit ---
     if (isVideo) {
-      const videos = Array.from(incoming).filter(isVideFile);
+      const videos = Array.from(incoming).filter(isVideoFile);
       if (videos.length === 0) return;
       const single = videos[0];
       if (single.size > MAX_VIDEO_BYTES) {

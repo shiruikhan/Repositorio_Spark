@@ -15,7 +15,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const [{ data: images }, { data: productRow }] = await Promise.all([
     supabase
       .from("ext_product_images")
-      .select("id, product_code, file_path, resolution_type, position, public_url, created_at")
+      .select("id, product_code, file_path, resolution_type, position, public_url, created_at, is_featured")
       .eq("product_code", code)
       .is("deleted_at", null)
       .order("resolution_type")
@@ -41,8 +41,10 @@ export default async function ProductDetailPage({ params }: Props) {
   const promos  = images.filter((i) => i.resolution_type === "promo");
   const videos  = images.filter((i) => i.resolution_type === "video");
 
-  // ImageGrid recebe apenas high/low (suporta drag-and-drop)
-  const imagesOnly = images.filter((i) => i.resolution_type === "high" || i.resolution_type === "low");
+  // ImageGrid recebe apenas high/low (suporta drag-and-drop e marcação de capa)
+  const imagesOnly = images
+    .filter((i) => i.resolution_type === "high" || i.resolution_type === "low")
+    .map((i) => ({ ...i, is_featured: (i as { is_featured?: boolean }).is_featured ?? false }));
 
   const apiPreview = JSON.stringify(
     {
