@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import GalleryGrid from "./GalleryGrid";
 
 type FilterType = "todos" | "apenas-high" | "apenas-low" | "recentes" | "sem-imagens";
 
@@ -96,44 +97,16 @@ export default async function GalleryPage({ searchParams }: Props) {
       {(products ?? []).length === 0 ? (
         <EmptyState q={q} filter={activeFilter} />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {(products ?? []).map((row) => {
-            const thumbUrl = row.thumb_url as string | null;
-            const hasHigh = (row.high_count as number) > 0;
-            const hasLow = (row.low_count as number) > 0;
-            return (
-              <Link
-                key={row.product_code}
-                href={`/gallery/${encodeURIComponent(row.product_code)}`}
-                className="group bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:border-brand hover:shadow-md transition"
-              >
-                <div className="w-full h-36 bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                  {thumbUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumbUrl} alt={`Produto ${row.product_code}`} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
-                      <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Cód: {row.product_code}</p>
-                  {row.product_name && (
-                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{row.product_name as string}</p>
-                  )}
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.total_images as number} imagem(ns)</p>
-                  <div className="flex gap-1 mt-1.5 flex-wrap">
-                    {hasHigh && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
-                    {hasLow && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa</span>}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+        <GalleryGrid
+          products={(products ?? []).map((row) => ({
+            product_code: row.product_code as string,
+            product_name: row.product_name as string | null,
+            total_images: row.total_images as number,
+            high_count: row.high_count as number,
+            low_count: row.low_count as number,
+            thumb_url: row.thumb_url as string | null,
+          }))}
+        />
       )}
     </GalleryLayout>
   );

@@ -3,6 +3,44 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export async function deleteProductsBulk(productCodes: string[]) {
+  if (!productCodes.length) return { ok: false, message: "Nenhum produto selecionado." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Sessão expirada." };
+
+  const { data: images, error: fetchError } = await supabase
+    .from("ext_product_images")
+    .select("file_path")
+    .in("product_code", productCodes)
+    .is("deleted_at", null);
+
+  if (fetchError) return { ok: false, message: fetchError.message };
+
+  const filePaths = (images ?? []).map((img) => img.file_path);
+  if (filePaths.length > 0) {
+    await createAdminClient().storage.from("product-assets").remove(filePaths);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("ext_product_images")
+    .update({ deleted_at: new Date().toISOString() })
+    .in("product_code", productCodes)
+    .is("deleted_at", null);
+
+  if (deleteError) return { ok: false, message: deleteError.message };
+
+  revalidatePath("/gallery");
+  revalidatePath("/dashboard");
+  productCodes.forEach((code) => revalidatePath(`/gallery/${encodeURIComponent(code)}`));
+
+  return {
+    ok: true,
+    message: `${productCodes.length} produto(s) excluído(s) com ${filePaths.length} arquivo(s).`,
+  };
+}
+
 export async function deleteImage(id: string, filePath: string, productCode: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

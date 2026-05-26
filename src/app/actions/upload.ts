@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import type { ResolutionType } from "@/lib/naming";
 
 export type UploadedImage = {
   fileName: string;
@@ -23,7 +24,7 @@ export type UploadState = {
 
 export type SaveImagePayload = {
   productCode: string;
-  resolutionType: "high" | "low" | "manual";
+  resolutionType: ResolutionType;
   filePath: string;
   publicUrl: string;
   position: number;
@@ -71,7 +72,7 @@ export async function saveImageRecord(
 /** Obtém a próxima posição disponível para um produto + tipo. */
 export async function getNextPosition(
   productCode: string,
-  resolutionType: "high" | "low" | "manual"
+  resolutionType: ResolutionType
 ): Promise<number> {
   try {
     const supabase = await createClient();

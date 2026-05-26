@@ -8,6 +8,14 @@ import type { UploadedImage, UploadError, UploadState } from "@/app/actions/uplo
 
 const MIN_DIM = 300;
 const MAX_LOW_WIDTH = 800;
+const MAX_VIDEO_BYTES = 250 * 1024 * 1024; // 250 MB
+
+function isVideFile(f: File) {
+  return f.type.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(f.name);
+}
+function isPdfFile(f: File) {
+  return f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+}
 
 function checkDimensions(file: File): Promise<{ ok: boolean; width: number; height: number }> {
   return new Promise((resolve) => {
@@ -64,22 +72,54 @@ export default function UploadForm() {
   const productCodeRef = useRef<HTMLInputElement>(null);
 
   const isManual = resolutionType === "manual";
+  const isPromo  = resolutionType === "promo";
+  const isVideo  = resolutionType === "video";
+  const isImageOnly = resolutionType === "high" || resolutionType === "low";
 
   async function addFiles(incoming: FileList | null) {
     if (!incoming) return;
 
+    // --- Manual: single PDF ---
     if (isManual) {
-      // PDF only — sem verificacao de dimensoes
-      const pdfs = Array.from(incoming).filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
+      const pdfs = Array.from(incoming).filter(isPdfFile);
       if (pdfs.length === 0) return;
-      // Para manual: apenas 1 arquivo
-      const single = pdfs.slice(0, 1);
-      setFiles(single);
+      setFiles(pdfs.slice(0, 1));
       setPreviews([]);
       setDimensionErrors([]);
       return;
     }
 
+    // --- Video: single file, 250 MB limit ---
+    if (isVideo) {
+      const videos = Array.from(incoming).filter(isVideFile);
+      if (videos.length === 0) return;
+      const single = videos[0];
+      if (single.size > MAX_VIDEO_BYTES) {
+        setDimensionErrors([`${single.name} (${(single.size / 1024 / 1024).toFixed(1)} MB — máx. 250 MB)`]);
+        return;
+      }
+      setDimensionErrors([]);
+      setFiles([single]);
+      setPreviews([]);
+      return;
+    }
+
+    // --- Promo: imagens + PDFs, sem verificacao de dimensoes, sem canvas ---
+    if (isPromo) {
+      const candidates = Array.from(incoming).filter(
+        (f) => f.type.startsWith("image/") || isPdfFile(f)
+      );
+      if (candidates.length === 0) return;
+      setDimensionErrors([]);
+      setFiles((prev) => {
+        const merged = [...prev, ...candidates];
+        setPreviews(merged.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
+        return merged;
+      });
+      return;
+    }
+
+    // --- High / Low: apenas imagens com verificacao de dimensoes ---
     const candidates = Array.from(incoming).filter((f) => f.type.startsWith("image/"));
     const rejected: string[] = [];
     const valid: File[] = [];
@@ -108,7 +148,8 @@ export default function UploadForm() {
   function removeFile(index: number) {
     setFiles((prev) => {
       const next = prev.filter((_, i) => i !== index);
-      if (!isManual) setPreviews(next.map((f) => URL.createObjectURL(f)));
+      if (isImageOnly) setPreviews(next.map((f) => URL.createObjectURL(f)));
+      if (isPromo) setPreviews(next.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
       return next;
     });
   }
@@ -127,7 +168,11 @@ export default function UploadForm() {
     if (!productCode) { setState({ ok: false, message: "Informe o codigo do produto." }); return; }
     if (!resolutionType) { setState({ ok: false, message: "Selecione o tipo." }); return; }
     if (files.length === 0) {
-      setState({ ok: false, message: isManual ? "Selecione um arquivo PDF." : "Selecione ao menos uma imagem." });
+      const hint = isManual ? "Selecione um arquivo PDF."
+        : isVideo  ? "Selecione um arquivo de vídeo."
+        : isPromo  ? "Selecione ao menos um arquivo."
+        : "Selecione ao menos uma imagem.";
+      setState({ ok: false, message: hint });
       return;
     }
 
@@ -147,8 +192,9 @@ export default function UploadForm() {
       const position = startPosition + i;
       setFileProgress((prev) => new Map(prev).set(i, 0));
 
-      // PDFs nao passam pelo processamento de canvas
-      const fileToUpload = isManual ? file : await processImage(file, resolutionType);
+      // PDF, vídeo e promo não passam pelo canvas; high/low passam
+      const skipCanvas = isManual || isVideo || isPromo || isPdfFile(file);
+      const fileToUpload = skipCanvas ? file : await processImage(file, resolutionType as "high" | "low");
       const filePath = buildFilePath(productCode, resolutionType, timestamp, position, fileToUpload.name);
 
       const { error: storageError } = await supabase.storage
@@ -198,15 +244,22 @@ export default function UploadForm() {
       productCode,
       results,
       errors,
-      message:
-        results.length > 0
-          ? results.length + (isManual ? " manual(is) enviado(s) com sucesso." : " imagem(ns) enviada(s) com sucesso.")
-          : "Nenhum arquivo foi enviado.",
+      message: results.length > 0
+        ? results.length + (
+            isManual ? " manual(is) enviado(s) com sucesso."
+            : isVideo  ? " vídeo(s) enviado(s) com sucesso."
+            : isPromo  ? " arquivo(s) promocional(is) enviado(s) com sucesso."
+            : " imagem(ns) enviada(s) com sucesso."
+          )
+        : "Nenhum arquivo foi enviado.",
     });
   }
 
   const submitLabel = files.length > 0
-    ? (isManual ? "Enviar manual PDF" : "Enviar " + files.length + " imagem(ns)")
+    ? isManual ? "Enviar manual PDF"
+      : isVideo  ? "Enviar vídeo"
+      : isPromo  ? "Enviar " + files.length + " arquivo(s) promo"
+      : "Enviar " + files.length + " imagem(ns)"
     : "Enviar";
 
   return (
@@ -243,6 +296,8 @@ export default function UploadForm() {
               <option value="high">Alta resolucao</option>
               <option value="low">Baixa resolucao</option>
               <option value="manual">Manual do produto (PDF)</option>
+              <option value="promo">Material Promocional</option>
+              <option value="video">Video do produto</option>
             </select>
           </div>
         </div>
@@ -250,7 +305,7 @@ export default function UploadForm() {
         {/* Drop zone — muda conforme o tipo selecionado */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {isManual ? "Manual PDF" : "Imagens"} <span className="text-brand">*</span>
+            {isManual ? "Manual PDF" : isVideo ? "Vídeo" : isPromo ? "Material Promocional" : "Imagens"} <span className="text-brand">*</span>
           </label>
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -263,7 +318,11 @@ export default function UploadForm() {
                 : "border-gray-300 dark:border-gray-700 hover:border-brand hover:bg-gray-50 dark:hover:bg-gray-800/50"
             )}
           >
-            {isManual ? (
+            {isVideo ? (
+              <svg className={"w-8 h-8 " + (dragging ? "text-brand" : "text-gray-400 dark:text-gray-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            ) : (isManual || isPromo) ? (
               <svg className={"w-8 h-8 " + (dragging ? "text-brand" : "text-gray-400 dark:text-gray-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
@@ -273,17 +332,25 @@ export default function UploadForm() {
               </svg>
             )}
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Arraste {isManual ? "o PDF" : "imagens"} aqui ou{" "}
+              Arraste {isManual ? "o PDF" : isVideo ? "o vídeo" : isPromo ? "os arquivos" : "imagens"} aqui ou{" "}
               <span className="text-brand font-medium">clique para selecionar</span>
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              {isManual ? "PDF - ate 50 MB" : "JPG, PNG, WEBP - ate 50 MB cada"}
+              {isManual  ? "PDF — até 50 MB"
+               : isVideo  ? "MP4, WEBM, MOV — até 250 MB"
+               : isPromo  ? "JPG, PNG, WEBP, PDF — até 50 MB cada"
+               : "JPG, PNG, WEBP — até 50 MB cada"}
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept={isManual ? "application/pdf,.pdf" : "image/*"}
-              multiple={!isManual}
+              accept={
+                isManual ? "application/pdf,.pdf"
+                : isVideo  ? "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                : isPromo  ? "image/*,application/pdf,.pdf"
+                : "image/*"
+              }
+              multiple={!isManual && !isVideo}
               className="hidden"
               onChange={(e) => void addFiles(e.target.files)}
             />
@@ -296,20 +363,22 @@ export default function UploadForm() {
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
               {files.length} arquivo(s) selecionado(s)
             </p>
-            {isManual ? (
-              <div className="flex items-center gap-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-xl px-4 py-3">
-                <svg className="w-8 h-8 text-orange-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                </svg>
+            {(isManual || isVideo) ? (
+              <div className={`flex items-center gap-3 border rounded-xl px-4 py-3 ${isVideo ? "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/40" : "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800/40"}`}>
+                {isVideo ? (
+                  <svg className="w-8 h-8 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                  </svg>
+                ) : (
+                  <svg className="w-8 h-8 text-orange-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{files[0].name}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{(files[0].size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeFile(0)}
-                  className="text-xs text-red-500 hover:text-red-700 font-medium shrink-0"
-                >
+                <button type="button" onClick={() => removeFile(0)} className="text-xs text-red-500 hover:text-red-700 font-medium shrink-0">
                   Remover
                 </button>
               </div>
@@ -317,12 +386,16 @@ export default function UploadForm() {
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {files.map((file, i) => (
                   <div key={i} className="relative group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={previews[i]}
-                      alt={file.name}
-                      className="w-full h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
-                    />
+                    {previews[i] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={previews[i]} alt={file.name} className="w-full h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                    ) : (
+                      <div className="w-full h-20 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); removeFile(i); }}

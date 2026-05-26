@@ -1,4 +1,4 @@
-export type ResolutionType = "high" | "low" | "manual";
+export type ResolutionType = "high" | "low" | "manual" | "promo" | "video";
 
 export function buildFilePath(
   productCode: string,
