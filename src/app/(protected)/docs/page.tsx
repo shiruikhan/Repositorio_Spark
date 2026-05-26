@@ -12,11 +12,15 @@ const CURL = (code: string) =>
 const CURL_WITH_KEY = (code: string) =>
   `curl -s "https://repositorio.spark.ind.br/api/products/${code}/images?quality=high" \\\n  -H "X-API-Key: SUA_CHAVE_API"`;
 
+const CURL_ZIP = (code: string) =>
+  `# Download do ZIP com todas as imagens do produto:\ncurl -OJ "https://repositorio.spark.ind.br/api/products/${code}/zip"\n\n` +
+  `# O arquivo gerado será: spark_${code}_imagens.zip`;
+
 const FETCH_JS = (code: string) => `// Todas as imagens
 const res = await fetch(
   "https://repositorio.spark.ind.br/api/products/${code}/images"
 );
-const { product_code, quality, total, images, manuals } = await res.json();
+const { product_code, quality, total, images, manuals, promos, videos } = await res.json();
 
 // Somente alta resolução
 const resHigh = await fetch(
@@ -25,7 +29,9 @@ const resHigh = await fetch(
 
 // images[0].public_url       → URL permanente da imagem
 // images[0].resolution_type  → "high" | "low"
-// manuals[0].public_url      → URL do manual do produto`;
+// manuals[0].public_url      → URL do manual do produto
+// promos[0].public_url       → URL do material promocional
+// videos[0].public_url       → URL do vídeo do produto`;
 
 const SUPABASE_DIRECT = (code: string) =>
   `# Todas as imagens:\n${BASE}/rest/v1/ext_product_images` +
@@ -64,6 +70,16 @@ const EXAMPLE_RESPONSE = JSON.stringify(
         created_at: "2026-05-08T12:00:00.000Z",
       },
     ],
+    promos: [
+      {
+        id: "uuid-4",
+        resolution_type: "promo",
+        position: 0,
+        public_url: "https://xxx.supabase.co/storage/v1/object/public/product-assets/1234/1234_promo_1715000000_0.jpg",
+        created_at: "2026-05-08T12:00:00.000Z",
+      },
+    ],
+    videos: [],
   },
   null,
   2
@@ -195,6 +211,10 @@ export default async function DocsPage() {
                 ["manuals[].id", "string (uuid)", "Identificador único do manual"],
                 ["manuals[].public_url", "string", "URL pública permanente do manual"],
                 ["manuals[].created_at", "ISO 8601", "Data de criação"],
+                ["promos[]", "array", "Material promocional — retornado apenas sem filtro quality"],
+                ["promos[].public_url", "string", "URL pública permanente do material"],
+                ["videos[]", "array", "Vídeos do produto — retornados apenas sem filtro quality"],
+                ["videos[].public_url", "string", "URL pública permanente do vídeo"],
               ].map(([field, type, desc]) => (
                 <tr key={field}>
                   <td className="px-3 py-2 font-mono text-brand">{field}</td>
@@ -223,6 +243,58 @@ export default async function DocsPage() {
         </div>
       </Section>
 
+      {/* ZIP endpoint */}
+      <Section title="Download ZIP">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded">
+              GET
+            </span>
+            <code className="text-sm font-mono text-gray-800 dark:text-gray-200 break-all">
+              /api/products/<span className="text-brand">{"{productCode}"}</span>/zip
+            </code>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Gera e retorna um arquivo ZIP com todas as imagens do produto organizadas em pastas por tipo.
+            Endpoint público, sem autenticação. O arquivo é montado sob demanda — use com moderação para produtos com muitas imagens.
+          </p>
+
+          <table className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+              <tr>
+                <th className="text-left px-3 py-2">Pasta no ZIP</th>
+                <th className="text-left px-3 py-2">Conteúdo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+              {[
+                ["alta_resolucao/", "Imagens high resolution"],
+                ["baixa_resolucao/", "Imagens low resolution"],
+                ["manuais/", "Manuais em PDF"],
+                ["material_promocional/", "Imagens promocionais"],
+                ["videos/", "Vídeos do produto"],
+              ].map(([folder, desc]) => (
+                <tr key={folder}>
+                  <td className="px-3 py-2 font-mono text-brand">{folder}</td>
+                  <td className="px-3 py-2">{desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-lg px-3 py-2 text-xs text-amber-700 dark:text-amber-400 space-y-0.5">
+            <p className="font-semibold">Limites</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>Máximo de <strong>200 arquivos</strong> por produto</li>
+              <li>Máximo de <strong>200 MB</strong> por ZIP — arquivos acima do limite são ignorados</li>
+              <li>Resposta: <code className="font-mono">application/zip</code> com nome <code className="font-mono">spark_{"{productCode}"}_imagens.zip</code></li>
+            </ul>
+          </div>
+
+          <CodeBlock label="cURL" code={CURL_ZIP("1234")} lang="bash" />
+        </div>
+      </Section>
+
       {/* Live tester */}
       <Section title="Tester interativo">
         <ApiTester />
@@ -244,8 +316,11 @@ export default async function DocsPage() {
           <li>
             Manuais (<code className="font-mono">manuals[]</code>) são sempre retornados independente do filtro <code className="font-mono">quality</code>.
           </li>
+          <li>
+            Material promocional (<code className="font-mono">promos[]</code>) e vídeos (<code className="font-mono">videos[]</code>) só são retornados quando <code className="font-mono">quality</code> é omitido.
+          </li>
           <li>Valor inválido de <code className="font-mono">quality</code> retorna <code className="font-mono">400 Bad Request</code>.</li>
-          <li>Cache de 60 s no servidor, stale por até 5 min (CDN).</li>
+          <li>Cache de 60 s no servidor, stale por até 5 min (CDN) — aplica-se apenas ao endpoint <code className="font-mono">/images</code>. O endpoint <code className="font-mono">/zip</code> é sempre gerado sob demanda.</li>
         </ul>
       </div>
     </div>
