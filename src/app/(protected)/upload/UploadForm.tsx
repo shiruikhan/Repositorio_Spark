@@ -69,8 +69,24 @@ export default function UploadForm() {
   const [fileProgress, setFileProgress] = useState<Map<number, number>>(new Map());
   const [dimensionErrors, setDimensionErrors] = useState<string[]>([]);
   const [resolutionType, setResolutionType] = useState<ResolutionType | "">("");
+  const [productName, setProductName] = useState<string | null | "not_found">(null);
+  const [productNameLoading, setProductNameLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productCodeRef = useRef<HTMLInputElement>(null);
+
+  async function handleProductCodeBlur() {
+    const code = productCodeRef.current?.value.trim();
+    if (!code || !/^\d+$/.test(code)) { setProductName(null); return; }
+    setProductNameLoading(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("produto")
+      .select("descrprod")
+      .eq("codprod", Number(code))
+      .maybeSingle();
+    setProductName(data?.descrprod ?? "not_found");
+    setProductNameLoading(false);
+  }
 
   const isManual = resolutionType === "manual";
   const isPromo  = resolutionType === "promo";
@@ -278,8 +294,19 @@ export default function UploadForm() {
               type="text"
               required
               placeholder="Ex: 1234"
+              onChange={() => setProductName(null)}
+              onBlur={handleProductCodeBlur}
               className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
             />
+            {productNameLoading && (
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Buscando produto...</p>
+            )}
+            {!productNameLoading && productName === "not_found" && (
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Produto não encontrado no catálogo — o upload ainda pode ser feito.</p>
+            )}
+            {!productNameLoading && productName && productName !== "not_found" && (
+              <p className="mt-1 text-xs text-green-700 dark:text-green-400 font-medium truncate">{productName}</p>
+            )}
           </div>
 
           <div>

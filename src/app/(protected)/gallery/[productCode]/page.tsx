@@ -163,22 +163,30 @@ export default async function ProductDetailPage({ params }: Props) {
 
       {/* Vídeos */}
       {videos.length > 0 && (
-        <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 rounded-xl px-4 py-3 space-y-2">
+        <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 rounded-xl px-4 py-3 space-y-3">
           <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wide">Vídeos do produto</p>
           {videos.map((item) => {
             const filename = item.file_path.split("/").pop() ?? item.file_path;
             return (
-              <div key={item.id} className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-                </svg>
-                <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">{filename}</span>
+              <div key={item.id} className="space-y-2">
                 {item.public_url && (
-                  <a href={item.public_url} target="_blank" rel="noopener noreferrer" download
-                    className="shrink-0 text-xs font-semibold text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 border border-purple-300 dark:border-purple-700 px-2.5 py-1 rounded-lg transition">
-                    Download
-                  </a>
+                  <video
+                    controls
+                    preload="metadata"
+                    className="w-full max-h-72 rounded-lg bg-black"
+                  >
+                    <source src={item.public_url} />
+                  </video>
                 )}
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">{filename}</span>
+                  {item.public_url && (
+                    <a href={item.public_url} target="_blank" rel="noopener noreferrer" download
+                      className="shrink-0 text-xs font-semibold text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 border border-purple-300 dark:border-purple-700 px-2.5 py-1 rounded-lg transition">
+                      Download
+                    </a>
+                  )}
+                </div>
               </div>
             );
           })}
