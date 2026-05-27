@@ -1,311 +1,26 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { buildFilePath, type ResolutionType } from "@/lib/naming";
-import { saveImageRecord, getNextPosition } from "@/app/actions/upload";
-import type { UploadedImage, UploadError, UploadState } from "@/app/actions/upload";
 import CopyButton from "@/components/CopyButton";
-
-const MIN_DIM = 300;
-const MAX_LOW_WIDTH = 800;
-const MAX_VIDEO_BYTES = 250 * 1024 * 1024; // 250 MB
-
-function isVideoFile(f: File) {
-  return f.type.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(f.name);
-}
-function isPdfFile(f: File) {
-  return f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
-}
-
-function checkDimensions(file: File): Promise<{ ok: boolean; width: number; height: number }> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve({ ok: img.naturalWidth >= MIN_DIM && img.naturalHeight >= MIN_DIM, width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve({ ok: false, width: 0, height: 0 }); };
-    img.src = url;
-  });
-}
-
-async function processImage(file: File, resolutionType: ResolutionType): Promise<File> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const isLow = resolutionType === "low";
-      const needsResize = isLow && img.naturalWidth > MAX_LOW_WIDTH;
-      const scale = needsResize ? MAX_LOW_WIDTH / img.naturalWidth : 1;
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.naturalWidth * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      const ctx = canvas.getContext("2d")!;
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const quality = isLow ? 0.88 : 0.95;
-      const baseName = file.name.replace(/\.[^.]+$/, "");
-      canvas.toBlob(
-        (blob) => resolve(blob ? new File([blob], baseName + ".jpg", { type: "image/jpeg" }) : file),
-        "image/jpeg",
-        quality
-      );
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
-    img.src = url;
-  });
-}
+import { useUploadForm } from "./useUploadForm";
+import FileDropzone from "./FileDropzone";
+import FilePreviewGrid from "./FilePreviewGrid";
+import type { ResolutionType } from "@/lib/naming";
 
 export default function UploadForm() {
-  const [state, setState] = useState<UploadState | undefined>(undefined);
-  const [pending, setPending] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const [fileProgress, setFileProgress] = useState<Map<number, number>>(new Map());
-  const [dimensionErrors, setDimensionErrors] = useState<string[]>([]);
-  const [resolutionType, setResolutionType] = useState<ResolutionType | "">("");
-  const [productName, setProductName] = useState<string | null | "not_found">(null);
-  const [productNameLoading, setProductNameLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<Array<{ codprod: number; descrprod: string }>>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const productCodeRef = useRef<HTMLInputElement>(null);
-  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  async function fetchSuggestions(value: string) {
-    const trimmed = value.trim();
-    if (trimmed.length < 2) { setSuggestions([]); return; }
-    const supabase = createClient();
-    const isNumeric = /^\d+$/.test(trimmed);
-    const query = supabase.from("produto").select("codprod,descrprod").limit(8);
-    if (isNumeric) {
-      // Busca por prefixo numérico via cast text no PostgREST
-      void query.filter("codprod::text", "ilike", `${trimmed}%`).then(({ data }) => setSuggestions(data ?? []));
-    } else {
-      void query.ilike("descrprod", `%${trimmed}%`).then(({ data }) => setSuggestions(data ?? []));
-    }
-  }
-
-  function handleProductCodeChange() {
-    setProductName(null);
-    const value = productCodeRef.current?.value ?? "";
-    if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
-    suggestTimerRef.current = setTimeout(() => void fetchSuggestions(value), 300);
-  }
-
-  async function handleProductCodeBlur() {
-    const code = productCodeRef.current?.value.trim();
-    if (!code || !/^\d+$/.test(code)) { setProductName(null); return; }
-    setProductNameLoading(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("produto")
-      .select("descrprod")
-      .eq("codprod", Number(code))
-      .maybeSingle();
-    setProductName(data?.descrprod ?? "not_found");
-    setProductNameLoading(false);
-  }
-
-  const isManual = resolutionType === "manual";
-  const isPromo  = resolutionType === "promo";
-  const isVideo  = resolutionType === "video";
-  const isImageOnly = resolutionType === "high" || resolutionType === "low";
-
-  async function addFiles(incoming: FileList | null) {
-    if (!incoming) return;
-
-    // --- Manual: single PDF ---
-    if (isManual) {
-      const pdfs = Array.from(incoming).filter(isPdfFile);
-      if (pdfs.length === 0) return;
-      setFiles(pdfs.slice(0, 1));
-      setPreviews([]);
-      setDimensionErrors([]);
-      return;
-    }
-
-    // --- Video: single file, 250 MB limit ---
-    if (isVideo) {
-      const videos = Array.from(incoming).filter(isVideoFile);
-      if (videos.length === 0) return;
-      const single = videos[0];
-      if (single.size > MAX_VIDEO_BYTES) {
-        setDimensionErrors([`${single.name} (${(single.size / 1024 / 1024).toFixed(1)} MB — máx. 250 MB)`]);
-        return;
-      }
-      setDimensionErrors([]);
-      setFiles([single]);
-      setPreviews([]);
-      return;
-    }
-
-    // --- Promo: imagens + PDFs, sem verificacao de dimensoes, sem canvas ---
-    if (isPromo) {
-      const candidates = Array.from(incoming).filter(
-        (f) => f.type.startsWith("image/") || isPdfFile(f)
-      );
-      if (candidates.length === 0) return;
-      setDimensionErrors([]);
-      setFiles((prev) => {
-        const merged = [...prev, ...candidates];
-        setPreviews(merged.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
-        return merged;
-      });
-      return;
-    }
-
-    // --- High / Low: apenas imagens com verificacao de dimensoes ---
-    const candidates = Array.from(incoming).filter((f) => f.type.startsWith("image/"));
-    const rejected: string[] = [];
-    const valid: File[] = [];
-
-    await Promise.all(
-      candidates.map(async (f) => {
-        const { ok, width, height } = await checkDimensions(f);
-        if (ok) {
-          valid.push(f);
-        } else {
-          rejected.push(f.name + " (" + width + "x" + height + "px - min. " + MIN_DIM + "x" + MIN_DIM + "px)");
-        }
-      })
-    );
-
-    setDimensionErrors(rejected);
-    if (valid.length === 0) return;
-
-    setFiles((prev) => {
-      const merged = [...prev, ...valid];
-      setPreviews(merged.map((f) => URL.createObjectURL(f)));
-      return merged;
-    });
-  }
-
-  function removeFile(index: number) {
-    setFiles((prev) => {
-      const next = prev.filter((_, i) => i !== index);
-      if (isImageOnly) setPreviews(next.map((f) => URL.createObjectURL(f)));
-      if (isPromo) setPreviews(next.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
-      return next;
-    });
-  }
-
-  function handleResolutionChange(val: ResolutionType | "") {
-    setResolutionType(val);
-    setFiles([]);
-    setPreviews([]);
-    setDimensionErrors([]);
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const productCode = productCodeRef.current?.value.trim() ?? "";
-
-    if (!productCode) { setState({ ok: false, message: "Informe o codigo do produto." }); return; }
-    if (!resolutionType) { setState({ ok: false, message: "Selecione o tipo." }); return; }
-    if (files.length === 0) {
-      const hint = isManual ? "Selecione um arquivo PDF."
-        : isVideo  ? "Selecione um arquivo de vídeo."
-        : isPromo  ? "Selecione ao menos um arquivo."
-        : "Selecione ao menos uma imagem.";
-      setState({ ok: false, message: hint });
-      return;
-    }
-
-    setPending(true);
-    setState(undefined);
-    setFileProgress(new Map());
-
-    const supabase = createClient();
-    const timestamp = Date.now();
-    const startPosition = await getNextPosition(productCode, resolutionType);
-
-    const results: UploadedImage[] = [];
-    const errors: UploadError[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const position = startPosition + i;
-      setFileProgress((prev) => new Map(prev).set(i, 0));
-
-      // PDF, vídeo e promo não passam pelo canvas; high/low passam
-      const skipCanvas = isManual || isVideo || isPromo || isPdfFile(file);
-      const fileToUpload = skipCanvas ? file : await processImage(file, resolutionType as "high" | "low");
-      const filePath = buildFilePath(productCode, resolutionType, timestamp, position, fileToUpload.name);
-
-      const { error: storageError } = await supabase.storage
-        .from("product-assets")
-        .upload(filePath, fileToUpload, {
-          upsert: false,
-          contentType: fileToUpload.type,
-          // @ts-expect-error - onUploadProgress is supported by Supabase JS v2
-          onUploadProgress: (evt: { loaded: number; total: number }) => {
-            const pct = Math.round((evt.loaded / evt.total) * 100);
-            setFileProgress((prev) => new Map(prev).set(i, pct));
-          },
-        });
-
-      if (storageError) {
-        errors.push({ fileName: file.name, message: storageError.message });
-        setFileProgress((prev) => new Map(prev).set(i, -1));
-        continue;
-      }
-
-      setFileProgress((prev) => new Map(prev).set(i, 100));
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("product-assets")
-        .getPublicUrl(filePath);
-
-      const saved = await saveImageRecord({ productCode, resolutionType, filePath, publicUrl, position });
-
-      if (!saved.ok) {
-        errors.push({ fileName: file.name, message: saved.message ?? "Erro ao salvar no banco." });
-        continue;
-      }
-
-      results.push({ fileName: file.name, filePath, publicUrl });
-    }
-
-    setFileProgress(new Map());
-    setPending(false);
-
-    if (results.length > 0) {
-      setFiles([]);
-      setPreviews([]);
-    }
-
-    setState({
-      ok: errors.length === 0,
-      productCode,
-      results,
-      errors,
-      message: results.length > 0
-        ? results.length + (
-            isManual ? " manual(is) enviado(s) com sucesso."
-            : isVideo  ? " vídeo(s) enviado(s) com sucesso."
-            : isPromo  ? " arquivo(s) promocional(is) enviado(s) com sucesso."
-            : " imagem(ns) enviada(s) com sucesso."
-          )
-        : "Nenhum arquivo foi enviado.",
-    });
-  }
-
-  const submitLabel = files.length > 0
-    ? isManual ? "Enviar manual PDF"
-      : isVideo  ? "Enviar vídeo"
-      : isPromo  ? "Enviar " + files.length + " arquivo(s) promo"
-      : "Enviar " + files.length + " imagem(ns)"
-    : "Enviar";
+  const {
+    state, pending, files, previews, dragging, fileProgress, dimensionErrors,
+    resolutionType, productName, productNameLoading, suggestions,
+    fileInputRef, productCodeRef,
+    isManual, isVideo, isPromo, submitLabel,
+    setDragging, handleProductCodeChange, handleProductCodeBlur,
+    addFiles, removeFile, handleResolutionChange, handleSubmit,
+  } = useUploadForm();
 
   return (
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Product code + type */}
+
+        {/* Código do produto + Tipo */}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -331,10 +46,14 @@ export default function UploadForm() {
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Buscando produto...</p>
             )}
             {!productNameLoading && productName === "not_found" && (
-              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Produto não encontrado no catálogo — o upload ainda pode ser feito.</p>
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                Produto não encontrado no catálogo — o upload ainda pode ser feito.
+              </p>
             )}
             {!productNameLoading && productName && productName !== "not_found" && (
-              <p className="mt-1 text-xs text-green-700 dark:text-green-400 font-medium truncate">{productName}</p>
+              <p className="mt-1 text-xs text-green-700 dark:text-green-400 font-medium truncate">
+                {productName}
+              </p>
             )}
           </div>
 
@@ -359,116 +78,28 @@ export default function UploadForm() {
           </div>
         </div>
 
-        {/* Drop zone — muda conforme o tipo selecionado */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {isManual ? "Manual PDF" : isVideo ? "Vídeo" : isPromo ? "Material Promocional" : "Imagens"} <span className="text-brand">*</span>
-          </label>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); void addFiles(e.dataTransfer.files); }}
-            onClick={() => fileInputRef.current?.click()}
-            className={"cursor-pointer border-2 border-dashed rounded-xl py-10 flex flex-col items-center justify-center gap-2 transition " + (
-              dragging
-                ? "border-brand bg-red-50 dark:bg-red-950/20"
-                : "border-gray-300 dark:border-gray-700 hover:border-brand hover:bg-gray-50 dark:hover:bg-gray-800/50"
-            )}
-          >
-            {isVideo ? (
-              <svg className={"w-8 h-8 " + (dragging ? "text-brand" : "text-gray-400 dark:text-gray-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-              </svg>
-            ) : (isManual || isPromo) ? (
-              <svg className={"w-8 h-8 " + (dragging ? "text-brand" : "text-gray-400 dark:text-gray-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-            ) : (
-              <svg className={"w-8 h-8 " + (dragging ? "text-brand" : "text-gray-400 dark:text-gray-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-            )}
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Arraste {isManual ? "o PDF" : isVideo ? "o vídeo" : isPromo ? "os arquivos" : "imagens"} aqui ou{" "}
-              <span className="text-brand font-medium">clique para selecionar</span>
-            </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">
-              {isManual  ? "PDF — até 50 MB"
-               : isVideo  ? "MP4, WEBM, MOV — até 250 MB"
-               : isPromo  ? "JPG, PNG, WEBP, PDF — até 50 MB cada"
-               : "JPG, PNG, WEBP — até 50 MB cada"}
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={
-                isManual ? "application/pdf,.pdf"
-                : isVideo  ? "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
-                : isPromo  ? "image/*,application/pdf,.pdf"
-                : "image/*"
-              }
-              multiple={!isManual && !isVideo}
-              className="hidden"
-              onChange={(e) => void addFiles(e.target.files)}
-            />
-          </div>
-        </div>
+        {/* Drop zone */}
+        <FileDropzone
+          resolutionType={resolutionType}
+          dragging={dragging}
+          onDragOver={() => setDragging(true)}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(fl) => void addFiles(fl)}
+          onFileChange={(fl) => void addFiles(fl)}
+          fileInputRef={fileInputRef}
+        />
 
-        {/* Preview: PDF mostra nome; imagens mostram thumb */}
-        {files.length > 0 && (
-          <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              {files.length} arquivo(s) selecionado(s)
-            </p>
-            {(isManual || isVideo) ? (
-              <div className={`flex items-center gap-3 border rounded-xl px-4 py-3 ${isVideo ? "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/40" : "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800/40"}`}>
-                {isVideo ? (
-                  <svg className="w-8 h-8 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-                  </svg>
-                ) : (
-                  <svg className="w-8 h-8 text-orange-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                  </svg>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{files[0].name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{(files[0].size / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-                <button type="button" onClick={() => removeFile(0)} className="text-xs text-red-500 hover:text-red-700 font-medium shrink-0">
-                  Remover
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {files.map((file, i) => (
-                  <div key={i} className="relative group">
-                    {previews[i] ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={previews[i]} alt={file.name} className="w-full h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
-                    ) : (
-                      <div className="w-full h-20 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/40 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                        </svg>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                    >
-                      x
-                    </button>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate mt-0.5">{file.name}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Previews + progresso */}
+        <FilePreviewGrid
+          files={files}
+          previews={previews}
+          resolutionType={resolutionType}
+          pending={pending}
+          fileProgress={fileProgress}
+          onRemove={removeFile}
+        />
 
-        {/* Dimension errors */}
+        {/* Imagens rejeitadas por dimensão */}
         {dimensionErrors.length > 0 && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 space-y-0.5">
             <p className="text-xs font-semibold text-orange-700 mb-1">Imagens rejeitadas (abaixo do minimo):</p>
@@ -478,30 +109,7 @@ export default function UploadForm() {
           </div>
         )}
 
-        {/* Per-file progress */}
-        {pending && fileProgress.size > 0 && (
-          <div className="space-y-2">
-            {files.map((file, i) => {
-              const pct = fileProgress.get(i) ?? 0;
-              return (
-                <div key={i}>
-                  <div className="flex justify-between text-xs text-gray-500 mb-0.5">
-                    <span className="truncate max-w-[70%]">{file.name}</span>
-                    <span>{pct < 0 ? "erro" : (pct + "%")}</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className={"h-full transition-all rounded-full " + (pct < 0 ? "bg-red-500" : "bg-brand")}
-                      style={{ width: Math.max(0, pct) + "%" }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Global error */}
+        {/* Erro global de validação */}
         {state && !state.ok && state.message && !state.results?.length && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {state.message}
@@ -532,13 +140,16 @@ export default function UploadForm() {
         </button>
       </form>
 
-      {/* Success result */}
+      {/* Resultado de sucesso */}
       {state?.results && state.results.length > 0 && (
         <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900/50 rounded-xl p-4 space-y-3">
           <p className="text-sm font-semibold text-green-800 dark:text-green-400">{state.message}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {state.results.map((img) => (
-              <div key={img.filePath} className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-green-100 dark:border-green-900/50 rounded-lg px-3 py-2">
+              <div
+                key={img.filePath}
+                className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-green-100 dark:border-green-900/50 rounded-lg px-3 py-2"
+              >
                 <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
@@ -550,7 +161,7 @@ export default function UploadForm() {
         </div>
       )}
 
-      {/* Partial errors */}
+      {/* Erros parciais */}
       {state?.errors && state.errors.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-1">
           <p className="text-sm font-semibold text-red-800 mb-2">Falha em {state.errors.length} arquivo(s):</p>
@@ -564,4 +175,3 @@ export default function UploadForm() {
     </div>
   );
 }
-
