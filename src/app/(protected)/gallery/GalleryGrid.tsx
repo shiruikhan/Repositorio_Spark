@@ -10,6 +10,7 @@ export interface ProductRow {
   total_images: number;
   high_count: number;
   low_count: number;
+  manual_count: number;
   promo_count: number;
   video_count: number;
   thumb_url: string | null;

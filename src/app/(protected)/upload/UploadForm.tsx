@@ -71,8 +71,31 @@ export default function UploadForm() {
   const [resolutionType, setResolutionType] = useState<ResolutionType | "">("");
   const [productName, setProductName] = useState<string | null | "not_found">(null);
   const [productNameLoading, setProductNameLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<{ codprod: number; descrprod: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productCodeRef = useRef<HTMLInputElement>(null);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function fetchSuggestions(value: string) {
+    const trimmed = value.trim();
+    if (trimmed.length < 2) { setSuggestions([]); return; }
+    const supabase = createClient();
+    const isNumeric = /^\d+$/.test(trimmed);
+    const query = supabase.from("produto").select("codprod,descrprod").limit(8);
+    if (isNumeric) {
+      // Busca por prefixo numérico via cast text no PostgREST
+      void query.filter("codprod::text", "ilike", `${trimmed}%`).then(({ data }) => setSuggestions(data ?? []));
+    } else {
+      void query.ilike("descrprod", `%${trimmed}%`).then(({ data }) => setSuggestions(data ?? []));
+    }
+  }
+
+  function handleProductCodeChange() {
+    setProductName(null);
+    const value = productCodeRef.current?.value ?? "";
+    if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+    suggestTimerRef.current = setTimeout(() => void fetchSuggestions(value), 300);
+  }
 
   async function handleProductCodeBlur() {
     const code = productCodeRef.current?.value.trim();
@@ -294,10 +317,16 @@ export default function UploadForm() {
               type="text"
               required
               placeholder="Ex: 1234"
-              onChange={() => setProductName(null)}
+              list="product-suggestions"
+              onChange={handleProductCodeChange}
               onBlur={handleProductCodeBlur}
               className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand transition"
             />
+            <datalist id="product-suggestions">
+              {suggestions.map((s) => (
+                <option key={s.codprod} value={String(s.codprod)}>{s.descrprod}</option>
+              ))}
+            </datalist>
             {productNameLoading && (
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Buscando produto...</p>
             )}

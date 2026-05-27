@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import GalleryGrid from "./GalleryGrid";
 
-type FilterType = "todos" | "apenas-high" | "apenas-low" | "recentes" | "sem-imagens";
+type FilterType = "todos" | "apenas-high" | "apenas-low" | "apenas-manual" | "apenas-promo" | "apenas-video" | "recentes" | "sem-imagens";
 
 const PAGE_SIZE = 24;
 
@@ -11,11 +11,14 @@ interface Props {
 }
 
 const FILTER_CHIPS: { value: FilterType; label: string }[] = [
-  { value: "todos", label: "Todos" },
-  { value: "apenas-high", label: "Apenas high-res" },
-  { value: "apenas-low", label: "Apenas low-res" },
-  { value: "recentes", label: "Recentes (7d)" },
-  { value: "sem-imagens", label: "Sem imagens" },
+  { value: "todos",          label: "Todos" },
+  { value: "apenas-high",    label: "Alta res" },
+  { value: "apenas-low",     label: "Baixa res" },
+  { value: "apenas-manual",  label: "Manuais" },
+  { value: "apenas-promo",   label: "Promos" },
+  { value: "apenas-video",   label: "Vídeos" },
+  { value: "recentes",       label: "Recentes (7d)" },
+  { value: "sem-imagens",    label: "Sem imagens" },
 ];
 
 export default async function GalleryPage({ searchParams }: Props) {
@@ -98,15 +101,18 @@ export default async function GalleryPage({ searchParams }: Props) {
 
   let query = supabase
     .from("ext_product_images_summary")
-    .select("product_code, product_name, total_images, high_count, low_count, promo_count, video_count, thumb_url", { count: "exact" })
+    .select("product_code, product_name, total_images, high_count, low_count, manual_count, promo_count, video_count, thumb_url", { count: "exact" })
     .order("product_code");
 
   if (q?.trim()) {
     const search = q.trim();
     query = query.or(`product_code.ilike.%${search}%,product_name.ilike.%${search}%`);
   }
-  if (activeFilter === "apenas-high") query = query.gt("high_count", 0);
-  if (activeFilter === "apenas-low") query = query.gt("low_count", 0);
+  if (activeFilter === "apenas-high")   query = query.gt("high_count", 0);
+  if (activeFilter === "apenas-low")    query = query.gt("low_count", 0);
+  if (activeFilter === "apenas-manual") query = query.gt("manual_count", 0);
+  if (activeFilter === "apenas-promo")  query = query.gt("promo_count", 0);
+  if (activeFilter === "apenas-video")  query = query.gt("video_count", 0);
   if (activeFilter === "recentes") {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     query = query.gte("last_upload", since);
@@ -126,11 +132,12 @@ export default async function GalleryPage({ searchParams }: Props) {
             product_code: row.product_code as string,
             product_name: row.product_name as string | null,
             total_images: row.total_images as number,
-            high_count:   row.high_count   as number,
-            low_count:    row.low_count    as number,
+            high_count:   row.high_count    as number,
+            low_count:    row.low_count     as number,
+            manual_count: (row.manual_count ?? 0) as number,
             promo_count:  (row.promo_count  ?? 0) as number,
             video_count:  (row.video_count  ?? 0) as number,
-            thumb_url:    row.thumb_url    as string | null,
+            thumb_url:    row.thumb_url     as string | null,
           }))}
         />
       )}
@@ -246,10 +253,13 @@ function GalleryLayout({
 function EmptyState({ q, filter }: { q?: string; filter: FilterType }) {
   let msg = "Nenhuma imagem cadastrada ainda.";
   if (q) msg = `Nenhum produto encontrado para "${q}".`;
-  else if (filter === "sem-imagens") msg = "Todos os produtos já têm imagens!";
-  else if (filter === "recentes") msg = "Nenhuma imagem nos últimos 7 dias.";
-  else if (filter === "apenas-high") msg = "Nenhuma imagem high-res cadastrada.";
-  else if (filter === "apenas-low") msg = "Nenhuma imagem low-res cadastrada.";
+  else if (filter === "sem-imagens")    msg = "Todos os produtos já têm imagens!";
+  else if (filter === "recentes")       msg = "Nenhuma imagem nos últimos 7 dias.";
+  else if (filter === "apenas-high")    msg = "Nenhuma imagem high-res cadastrada.";
+  else if (filter === "apenas-low")     msg = "Nenhuma imagem low-res cadastrada.";
+  else if (filter === "apenas-manual")  msg = "Nenhum manual PDF cadastrado.";
+  else if (filter === "apenas-promo")   msg = "Nenhum material promocional cadastrado.";
+  else if (filter === "apenas-video")   msg = "Nenhum vídeo cadastrado.";
 
   return (
     <div className="bg-white dark:bg-gray-900 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl py-16 text-center">
