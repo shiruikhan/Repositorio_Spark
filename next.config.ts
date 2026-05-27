@@ -1,10 +1,9 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   async headers() {
     return [
-      // Força no-store em todas as rotas dinâmicas para evitar
-      // cache stale na Hostinger (e qualquer CDN intermediária)
       {
         // Exclui assets estáticos imutáveis do Next.js — eles têm hash no nome e podem ser cacheados
         source: "/((?!_next/static|_next/image|favicon).*)",
@@ -33,4 +32,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Silencia logs do Sentry durante o build
+  silent: true,
+  // Desativa telemetria do Sentry CLI
+  telemetry: false,
+  // Não faz upload de source maps (sem Sentry org/project configurado)
+  sourcemaps: { disable: true },
+});

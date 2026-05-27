@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { ProductSummary } from "./page";
 
@@ -20,8 +21,22 @@ function getFilename(url: string) {
   return url.split("/").pop()?.split("?")[0] ?? url;
 }
 
-export default function PublicGallery({ products }: { products: ProductSummary[] }) {
-  const [search, setSearch] = useState("");
+export default function PublicGallery({
+  products,
+  totalCount,
+  currentPage,
+  totalPages,
+  search: initialSearch,
+}: {
+  products: ProductSummary[];
+  totalCount: number;
+  currentPage: number;
+  totalPages: number;
+  search: string;
+}) {
+  const [search, setSearch] = useState(initialSearch);
+  const router = useRouter();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [modalImages, setModalImages]   = useState<FileItem[]>([]);
@@ -31,19 +46,22 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
   const [modalLoading, setModalLoading] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
 
-  const filtered = useMemo(
-    () =>
-      search.trim()
-        ? products.filter((p) => {
-            const s = search.trim().toLowerCase();
-            return (
-              p.product_code.toLowerCase().includes(s) ||
-              (p.product_name ? p.product_name.toLowerCase().includes(s) : false)
-            );
-          })
-        : products,
-    [products, search]
-  );
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (value.trim()) params.set("q", value.trim());
+      router.replace(`/?${params.toString()}`);
+    }, 400);
+  }
+
+  function goToPage(page: number) {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("q", search.trim());
+    if (page > 1) params.set("page", String(page));
+    router.push(`/?${params.toString()}`);
+  }
 
   async function openModal(product: ProductSummary) {
     setSelectedCode(product.product_code);
@@ -113,23 +131,23 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Buscar por codigo ou nome do produto..."
             className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand focus:ring-1 focus:ring-brand outline-none transition"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">
+            <button onClick={() => handleSearchChange("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">
               ×
             </button>
           )}
         </div>
         <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-          {filtered.length} produto{filtered.length !== 1 ? "s" : ""}
+          {totalCount} produto{totalCount !== 1 ? "s" : ""}
         </span>
       </div>
 
       {/* Product grid */}
-      {filtered.length === 0 ? (
+      {products.length === 0 ? (
         <div className="py-20 text-center">
           <p className="text-sm text-gray-400 dark:text-gray-500">
             {search ? `Nenhum produto encontrado para "${search}".` : "Nenhuma imagem disponivel no momento."}
@@ -137,7 +155,7 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map((p) => (
+          {products.map((p) => (
             <button
               key={p.product_code}
               onClick={() => openModal(p)}
@@ -213,6 +231,29 @@ export default function PublicGallery({ products }: { products: ProductSummary[]
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 pt-4">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-brand hover:text-brand transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-300 disabled:hover:text-gray-400"
+          >
+            ← Anterior
+          </button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Página {currentPage} de {totalPages}
+          </span>
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-brand hover:text-brand transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-300 disabled:hover:text-gray-400"
+          >
+            Próxima →
+          </button>
         </div>
       )}
 

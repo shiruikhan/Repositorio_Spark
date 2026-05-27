@@ -13,6 +13,8 @@ export const metadata: Metadata = {
 const LOGO_URL =
   "https://obbymrwivuhjopwnmoxx.supabase.co/storage/v1/object/public/product-assets/brand/spark_logo.png";
 
+const PAGE_SIZE = 24;
+
 export type ProductSummary = {
   product_code: string;
   product_name: string | null;
@@ -25,16 +27,32 @@ export type ProductSummary = {
   thumb_url: string | null;
 };
 
-export default async function PublicPage() {
+interface Props {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}
+
+export default async function PublicPage({ searchParams }: Props) {
+  const { q, page } = await searchParams;
+  const pageNum = Math.max(1, parseInt(page ?? "1"));
+  const offset  = (pageNum - 1) * PAGE_SIZE;
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const { data: products } = await supabase
+  let query = supabase
     .from("ext_product_images_summary")
-    .select("product_code, product_name, total_images, high_count, low_count, manual_count, promo_count, video_count, thumb_url")
+    .select("product_code, product_name, total_images, high_count, low_count, manual_count, promo_count, video_count, thumb_url", { count: "exact" })
     .order("product_code");
+
+  if (q?.trim()) {
+    query = query.or(`product_code.ilike.%${q.trim()}%,product_name.ilike.%${q.trim()}%`);
+  }
+
+  const { data: products, count } = await query.range(offset, offset + PAGE_SIZE - 1);
+
+  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -85,7 +103,13 @@ export default async function PublicPage() {
 
         {/* Gallery */}
         <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-8">
-          <PublicGallery products={products ?? []} />
+          <PublicGallery
+            products={products ?? []}
+            totalCount={count ?? 0}
+            currentPage={pageNum}
+            totalPages={totalPages}
+            search={q ?? ""}
+          />
         </main>
 
         {/* Footer */}

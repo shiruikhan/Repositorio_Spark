@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,15 @@ export async function GET(
     return NextResponse.json(
       { error: "product_code is required" },
       { status: 400, headers: CORS }
+    );
+  }
+
+  // Rate limiting: 60 req/min por IP
+  const ip = getClientIp(req.headers);
+  if (!checkRateLimit(`images_${ip}`, 60, 60_000)) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again in a minute." },
+      { status: 429, headers: { ...CORS, "Retry-After": "60" } }
     );
   }
 

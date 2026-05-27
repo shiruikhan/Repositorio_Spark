@@ -17,7 +17,7 @@ Sistema web para upload, gerenciamento e distribuição de imagens de produtos p
 | `estoque` | Posições de estoque |
 | `preco` | Tabela de preços (múltiplas tabelas de preço por codprod) |
 | `especificacao` | Especificações técnicas |
-| `produto_imagem` | URLs de imagem legado (campo `url` text, sincronizado via cron) |
+| `produto_imagem` | URLs de imagem legado (campo `url` text, sincronizado via cron) — todos os 336 registros já estão espelhados em `ext_product_images` |
 | `carrinho` | Carrinho de compras com RLS |
 | `pedido` / `pedido_item` | Pedidos e itens |
 | `cliente` | Usuários autenticados (vinculados ao `auth.users`, campo `is_admin` boolean) |
@@ -34,6 +34,7 @@ Sistema web para upload, gerenciamento e distribuição de imagens de produtos p
 - `file_path` text NOT NULL — caminho no bucket `product-assets`
 - `resolution_type` text CHECK IN ('high', 'low', 'manual', 'promo', 'video')
 - `position` int DEFAULT 0
+- `is_featured` boolean DEFAULT false — marca a imagem de capa do produto
 - `public_url` text — URL pública persistente para o integrador
 - `created_at` timestamptz DEFAULT now()
 - `deleted_at` timestamptz — soft delete (NULL = ativo)
@@ -56,7 +57,7 @@ Agrega por `product_code`: `total_images`, `high_count`, `low_count`, `manual_co
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=   # usado em Server Actions (admin client) e /api/products/.../images
+SUPABASE_SERVICE_ROLE_KEY=   # usado apenas em Server Actions (admin client) e validação de API Key em /api/products/.../images
 ```
 
 ## Rotas da aplicação
@@ -64,14 +65,20 @@ SUPABASE_SERVICE_ROLE_KEY=   # usado em Server Actions (admin client) e /api/pro
 |------|------|-----------|
 | `/login` | público | Autenticação Supabase Auth |
 | `/dashboard` | protegido | Visão geral com stats e últimos uploads |
-| `/upload` | protegido | Upload múltiplo com drag-drop e preview |
-| `/gallery` | protegido | Busca e grid de produtos com paginação (24/página) |
-| `/gallery/[productCode]` | protegido | Detalhe com drag-and-drop de reordenação, copy link, download |
+| `/upload` | protegido | Upload múltiplo com drag-drop, preview e feedback do nome do produto |
+| `/gallery` | protegido | Busca e grid de produtos com paginação (24/página) e filtro "sem imagens" via SQL |
+| `/gallery/[productCode]` | protegido | Detalhe com drag-and-drop de reordenação, copy link, download, preview de vídeo inline |
 | `/profile` | protegido | Troca de senha e gestão de API Key |
 | `/admin` | protegido (is_admin) | Criação de usuários |
-| `/docs` | protegido | Documentação e tester da API |
+| `/docs` | protegido | Documentação e tester da API (inclui endpoint `/zip`) |
+| `/api/health` | **público** | Health check — retorna `{ status: "ok", ts }` |
 | `/api/products/[productCode]/images` | **público** | JSON endpoint para o integrador |
-| `/api/products/[productCode]/zip` | **público** | Download ZIP de todas as imagens do produto |
+| `/api/products/[productCode]/zip` | **público** | Download ZIP de todas as imagens do produto (batches de 5, máx 200 arquivos / 200 MB) |
+
+## Tipos TypeScript
+- **`src/types/database.ts`** — schema completo gerado via Supabase MCP (`generate_typescript_types`)
+- Contém tipos para todas as tabelas, views e functions do banco
+- Regenerar sempre que houver mudança de schema: usar o MCP `generate_typescript_types` com `project_id: obbymrwivuhjopwnmoxx`
 
 ## Fases do Plano
 - [x] **Fase 1**: Infraestrutura Supabase (tabela + RLS + bucket)
@@ -79,18 +86,39 @@ SUPABASE_SERVICE_ROLE_KEY=   # usado em Server Actions (admin client) e /api/pro
 - [x] **Fase 3**: Upload múltiplo com padronização de nomenclatura
 - [x] **Fase 4**: Galeria e visualização
 - [x] **Fase 5**: Endpoint/documentação para integrador
+- [x] **Fase 6**: Otimizações, hardening e qualidade (ver histórico abaixo)
+
+## Histórico de melhorias (Fase 6)
+| Item | Descrição | Arquivo(s) |
+|------|-----------|-----------|
+| Cache config | `no-store` restrito a rotas dinâmicas; assets estáticos (`_next/static`) cacheados | `next.config.ts` |
+| Batch reorder | `reorderImages` usa `upsert` em lote (1 query) em vez de N round-trips | `actions/images.ts` |
+| Health check | Endpoint `/api/health` para monitoramento externo | `api/health/route.ts` |
+| Modal exclusão | `window.confirm` substituído por modal customizado em `ImageGrid` | `gallery/[productCode]/ImageGrid.tsx` |
+| CopyButton | Remoção da implementação local duplicada em `UploadForm.tsx` | `upload/UploadForm.tsx` |
+| Docs ZIP | Seção de Download ZIP documentada, `promos[]`/`videos[]` adicionados ao schema | `docs/page.tsx` |
+| Prebuild | Script `prebuild` removido — Next.js gerencia `.next` atomicamente | `package.json` |
+| Preview vídeo | `<video controls>` inline na galeria de produto em vez de ícone + download | `gallery/[productCode]/page.tsx` |
+| Feedback produto | `onBlur` no campo de código do upload busca e exibe o `descrprod` | `upload/UploadForm.tsx` |
+| Filtro SQL | "Sem imagens" usa `NOT IN` no banco em vez de subtração em memória JS | `gallery/page.tsx` |
+| ErrorBoundary | Componente `ErrorBoundary` envolve `{children}` no layout protegido | `components/ErrorBoundary.tsx`, `(protected)/layout.tsx` |
+| Hardening API | `/images` usa anon key para produtos; service role apenas para `ext_api_keys` | `api/products/.../images/route.ts` |
+| ZIP concorrência | Downloads do ZIP em batches de 5 em vez de `Promise.all` com N simultâneos | `api/products/.../zip/route.ts` |
+| Tipos TS | `src/types/database.ts` gerado via Supabase MCP com schema completo | `types/database.ts` |
 
 ## API para o integrador
 ```
 GET https://repositorio.spark.ind.br/api/products/{productCode}/images
 GET https://repositorio.spark.ind.br/api/products/{productCode}/zip
+GET https://repositorio.spark.ind.br/api/health
 ```
 - Sem autenticação obrigatória, CORS aberto
-- Header opcional `X-API-Key: <chave>` — valida e registra `last_used_at`
-- Parâmetro opcional `?quality=high|low` filtra tipo de imagem (manuals incluídos sempre)
+- Header opcional `X-API-Key: <chave>` — valida e registra `last_used_at` (apenas `/images`)
+- Parâmetro opcional `?quality=high|low` filtra tipo de imagem (manuals incluídos sempre; promos e videos excluídos quando quality é especificado)
 - Resposta `/images`: `{ product_code, quality, total, images[], manuals[], promos[], videos[] }`
-- Resposta `/zip`: arquivo `spark_{code}_imagens.zip` com pastas por tipo
+- Resposta `/zip`: arquivo `spark_{code}_imagens.zip` com pastas `alta_resolucao/`, `baixa_resolucao/`, `manuais/`, `material_promocional/`, `videos/`
 - Cache `/images`: `public, s-maxage=60, stale-while-revalidate=300`
+- `/zip`: sem cache, gerado sob demanda, limite 200 arquivos / 200 MB
 - Alternativa: Supabase REST direto com `apikey` header
 
 ## Nomenclatura de arquivos no bucket
@@ -115,4 +143,6 @@ Exemplo: 1234/1234_high_1715000000_0.jpg
 - Imagens high/low passam pelo canvas no cliente (resize/compress); manual, promo e video sobem direto
 - Validação de código de produto: inteiro positivo (não exige presença em `produto.codprod`)
 - Server Actions de escrita usam `createClient()` (RLS do usuário); deleções de Storage usam `createAdminClient()` (service role)
-- `next.config.ts` força `no-store` em todas as rotas — isso prevalece para rotas protegidas mas o header `Cache-Control` do route handler `/api/.../images` sobrescreve para a resposta pública
+- `/api/products/.../images`: usa anon key para queries de produto; service role apenas para validação/atualização de `ext_api_keys`
+- `next.config.ts` aplica `no-store` apenas em rotas dinâmicas (`/((?!_next/static|_next/image|favicon).*)`); assets estáticos são cacheados normalmente pelo browser
+- Ao regenerar tipos: usar MCP `generate_typescript_types` e sobrescrever `src/types/database.ts`

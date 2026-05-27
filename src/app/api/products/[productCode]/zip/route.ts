@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import JSZip from "jszip";
+import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,15 @@ export async function GET(
     return NextResponse.json(
       { error: "product_code is required" },
       { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
+  // Rate limiting: 5 req/min por IP (ZIP é custoso em memória)
+  const ip = getClientIp(_req.headers);
+  if (!checkRateLimit(`zip_${ip}`, 5, 60_000)) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again in a minute." },
+      { status: 429, headers: { ...CORS_HEADERS, "Retry-After": "60" } }
     );
   }
 
