@@ -57,13 +57,15 @@ Agrega por `product_code`: `total_images`, `high_count`, `low_count`, `manual_co
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=   # usado apenas em Server Actions (admin client) e validação de API Key em /api/products/.../images
+SUPABASE_SERVICE_ROLE_KEY=          # usado apenas em Server Actions (admin client) e validação de API Key em /api/products/.../images
+NEXT_PUBLIC_SENTRY_DSN=             # DSN do projeto Sentry — se ausente, o SDK é desabilitado silenciosamente
 ```
 
 ## Rotas da aplicação
 | Rota | Tipo | Descrição |
 |------|------|-----------|
 | `/login` | público | Autenticação Supabase Auth |
+| `/` | público | Galeria pública paginada (24/página, busca server-side via `?q=&page=`) |
 | `/dashboard` | protegido | Visão geral com stats e últimos uploads |
 | `/upload` | protegido | Upload múltiplo com drag-drop, preview e feedback do nome do produto |
 | `/gallery` | protegido | Busca e grid de produtos com paginação (24/página) e filtro "sem imagens" via SQL |
@@ -72,8 +74,8 @@ SUPABASE_SERVICE_ROLE_KEY=   # usado apenas em Server Actions (admin client) e v
 | `/admin` | protegido (is_admin) | Criação de usuários |
 | `/docs` | protegido | Documentação e tester da API (inclui endpoint `/zip`) |
 | `/api/health` | **público** | Health check — retorna `{ status: "ok", ts }` |
-| `/api/products/[productCode]/images` | **público** | JSON endpoint para o integrador |
-| `/api/products/[productCode]/zip` | **público** | Download ZIP de todas as imagens do produto (batches de 5, máx 200 arquivos / 200 MB) |
+| `/api/products/[productCode]/images` | **público** | JSON endpoint para o integrador (rate limit: 60 req/min por IP) |
+| `/api/products/[productCode]/zip` | **público** | Download ZIP de todas as imagens do produto (rate limit: 5 req/min por IP, batches de 5, máx 200 arquivos / 200 MB) |
 
 ## Tipos TypeScript
 - **`src/types/database.ts`** — schema completo gerado via Supabase MCP (`generate_typescript_types`)
@@ -105,6 +107,9 @@ SUPABASE_SERVICE_ROLE_KEY=   # usado apenas em Server Actions (admin client) e v
 | Hardening API | `/images` usa anon key para produtos; service role apenas para `ext_api_keys` | `api/products/.../images/route.ts` |
 | ZIP concorrência | Downloads do ZIP em batches de 5 em vez de `Promise.all` com N simultâneos | `api/products/.../zip/route.ts` |
 | Tipos TS | `src/types/database.ts` gerado via Supabase MCP com schema completo | `types/database.ts` |
+| Paginação pública | Galeria `/` paginada server-side (24/pág); busca via URL (`?q=&page=`) com debounce | `app/page.tsx`, `app/PublicGallery.tsx` |
+| Rate limiting | Limiter em memória: `/images` 60 req/min, `/zip` 5 req/min por IP; `Retry-After: 60` | `lib/ratelimit.ts`, rotas de API |
+| Sentry | Rastreamento de erros em produção; ativado via `NEXT_PUBLIC_SENTRY_DSN` | `sentry.*.config.ts`, `instrumentation.ts`, `next.config.ts` |
 
 ## API para o integrador
 ```
@@ -146,3 +151,5 @@ Exemplo: 1234/1234_high_1715000000_0.jpg
 - `/api/products/.../images`: usa anon key para queries de produto; service role apenas para validação/atualização de `ext_api_keys`
 - `next.config.ts` aplica `no-store` apenas em rotas dinâmicas (`/((?!_next/static|_next/image|favicon).*)`); assets estáticos são cacheados normalmente pelo browser
 - Ao regenerar tipos: usar MCP `generate_typescript_types` e sobrescrever `src/types/database.ts`
+- Rate limiting em memória (`src/lib/ratelimit.ts`) — adequado para deploy single-instance no Hostinger; se migrar para multi-instância, substituir por `@upstash/ratelimit` + Redis
+- Sentry ativado somente quando `NEXT_PUBLIC_SENTRY_DSN` estiver definido — degradação graciosa em ambientes sem a variável
