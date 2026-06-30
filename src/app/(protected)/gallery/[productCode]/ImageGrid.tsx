@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import CopyButton from "@/components/CopyButton";
 import DownloadButton from "@/components/DownloadButton";
 import { deleteImage, reorderImages, setFeaturedImage } from "@/app/actions/images";
@@ -22,41 +23,118 @@ export default function ImageGrid({
   images: ImageRow[];
   productCode: string;
 }) {
+  const router = useRouter();
   const [highRes, setHighRes] = useState(images.filter((i) => i.resolution_type === "high"));
   const [lowRes,  setLowRes]  = useState(images.filter((i) => i.resolution_type === "low"));
 
-  // ID da imagem atualmente marcada como capa (compartilhado entre seções)
   const [featuredId, setFeaturedId] = useState<string | null>(
     images.find((i) => i.is_featured)?.id ?? null
   );
+  // featuredId no momento do último save (para saber se mudou)
+  const savedFeaturedId = useRef<string | null>(featuredId);
+
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   function handleToggleFeatured(img: ImageRow) {
     const willBeFeatured = featuredId !== img.id;
-
-    // Atualização otimista: reflete imediatamente na UI
     setFeaturedId(willBeFeatured ? img.id : null);
+    setIsDirty(true);
+    setSaveError(null);
+  }
 
-    // Persiste no banco (fire-and-forget com rollback em erro)
-    setFeaturedImage(img.id, productCode, willBeFeatured).then((res) => {
-      if (!res.ok) {
-        // Reverte estado em caso de erro
-        setFeaturedId(img.is_featured ? img.id : null);
-        alert(res.message ?? "Erro ao definir capa.");
+  function handleReorder(type: "high" | "low", reordered: ImageRow[]) {
+    if (type === "high") setHighRes(reordered);
+    else setLowRes(reordered);
+    setIsDirty(true);
+    setSaveError(null);
+  }
+
+  async function handleSave() {
+    setIsSaving(true);
+    setSaveError(null);
+
+    const allUpdates = [
+      ...highRes.map(({ id, position }) => ({ id, position })),
+      ...lowRes.map(({ id, position }) => ({ id, position })),
+    ];
+
+    const reorderRes = await reorderImages(allUpdates, productCode);
+    if (!reorderRes.ok) {
+      setSaveError(reorderRes.message ?? "Erro ao salvar ordem.");
+      setIsSaving(false);
+      return;
+    }
+
+    // Só chama setFeaturedImage se o featured mudou desde o último save
+    if (featuredId !== savedFeaturedId.current) {
+      if (featuredId) {
+        const featRes = await setFeaturedImage(featuredId, productCode, true);
+        if (!featRes.ok) {
+          setSaveError(featRes.message ?? "Erro ao definir capa.");
+          setIsSaving(false);
+          return;
+        }
+      } else if (savedFeaturedId.current) {
+        // Desmarcou a capa
+        const featRes = await setFeaturedImage(savedFeaturedId.current, productCode, false);
+        if (!featRes.ok) {
+          setSaveError(featRes.message ?? "Erro ao remover capa.");
+          setIsSaving(false);
+          return;
+        }
       }
-    });
+      savedFeaturedId.current = featuredId;
+    }
+
+    setIsDirty(false);
+    setIsSaving(false);
+    // Força re-fetch dos dados do servidor, contornando cache HTTP intermediário
+    router.refresh();
   }
 
   return (
     <div className="space-y-6">
+      {/* Barra de alterações pendentes */}
+      {isDirty && (
+        <div className="flex items-center justify-between gap-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-xl px-4 py-3">
+          <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium">
+            Há alterações não salvas na ordem ou capa.
+          </p>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="shrink-0 inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-yellow-500 hover:bg-yellow-600 disabled:opacity-60 px-4 py-1.5 rounded-lg transition"
+          >
+            {isSaving ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
+                </svg>
+                Salvando…
+              </>
+            ) : (
+              "Salvar alterações"
+            )}
+          </button>
+        </div>
+      )}
+      {saveError && (
+        <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>
+      )}
+
       {highRes.length > 0 && (
         <Section
           title="Alta resolução"
           badge="blue"
           items={highRes}
-          setItems={setHighRes}
+          onReorder={(reordered) => handleReorder("high", reordered)}
           productCode={productCode}
           featuredId={featuredId}
           onToggleFeatured={handleToggleFeatured}
+          onDelete={(id) => setHighRes((prev) => prev.filter((x) => x.id !== id))}
         />
       )}
       {lowRes.length > 0 && (
@@ -64,10 +142,11 @@ export default function ImageGrid({
           title="Baixa resolução"
           badge="green"
           items={lowRes}
-          setItems={setLowRes}
+          onReorder={(reordered) => handleReorder("low", reordered)}
           productCode={productCode}
           featuredId={featuredId}
           onToggleFeatured={handleToggleFeatured}
+          onDelete={(id) => setLowRes((prev) => prev.filter((x) => x.id !== id))}
         />
       )}
     </div>
@@ -78,18 +157,20 @@ function Section({
   title,
   badge,
   items,
-  setItems,
+  onReorder,
   productCode,
   featuredId,
   onToggleFeatured,
+  onDelete,
 }: {
   title: string;
   badge: "blue" | "green";
   items: ImageRow[];
-  setItems: React.Dispatch<React.SetStateAction<ImageRow[]>>;
+  onReorder: (reordered: ImageRow[]) => void;
   productCode: string;
   featuredId: string | null;
   onToggleFeatured: (img: ImageRow) => void;
+  onDelete: (id: string) => void;
 }) {
   const color = badge === "blue" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700";
   const dragIndex = useRef<number | null>(null);
@@ -105,12 +186,8 @@ function Section({
     const [moved] = reordered.splice(from, 1);
     reordered.splice(i, 0, moved);
     const withPositions = reordered.map((img, idx) => ({ ...img, position: idx }));
-    setItems(withPositions);
     dragIndex.current = null;
-    reorderImages(
-      withPositions.map(({ id, position }) => ({ id, position })),
-      productCode
-    );
+    onReorder(withPositions);
   }
 
   return (
@@ -127,7 +204,7 @@ function Section({
             productCode={productCode}
             isFeatured={featuredId === img.id}
             onToggleFeatured={() => onToggleFeatured(img)}
-            onDelete={(id) => setItems((prev) => prev.filter((x) => x.id !== id))}
+            onDelete={onDelete}
             draggable
             onDragStart={() => handleDragStart(i)}
             onDragOver={(e) => e.preventDefault()}
