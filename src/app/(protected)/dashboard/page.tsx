@@ -99,7 +99,7 @@ export default async function DashboardPage() {
                   <div className="relative w-full h-32">
                     <Image
                       src={img.public_url}
-                      alt={img.product_code}
+                      alt={`Produto ${img.product_code}`}
                       fill
                       sizes="(max-width: 640px) 50vw, 33vw"
                       className="object-cover"

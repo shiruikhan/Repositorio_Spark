@@ -14,6 +14,155 @@ export interface ProductRow {
   promo_count: number;
   video_count: number;
   thumb_url: string | null;
+  category_name?: string | null;
+}
+
+function ProductCard({ row, selectionMode, isSelected, onSelect }: {
+  row: ProductRow;
+  selectionMode: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const hasHigh  = row.high_count > 0;
+  const hasLow   = row.low_count > 0;
+  const hasPromo = row.promo_count > 0;
+  const hasVideo = row.video_count > 0;
+
+  const inner = (
+    <>
+      <div className="w-full h-36 bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
+        {row.thumb_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={row.thumb_url}
+            alt={row.product_name ? `${row.product_name} (cód. ${row.product_code})` : `Produto ${row.product_code}`}
+            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
+            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
+        {selectionMode && (
+          <div className={`absolute inset-0 flex items-center justify-center transition ${isSelected ? "bg-brand/20" : "bg-black/0 group-hover:bg-black/10"}`}>
+            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${isSelected ? "bg-brand border-brand" : "border-white bg-white/60"}`}>
+              {isSelected && (
+                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Cód: {row.product_code}</p>
+        {row.product_name && (
+          <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{row.product_name}</p>
+        )}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.total_images} imagem(ns)</p>
+        <div className="flex gap-1 mt-1.5 flex-wrap">
+          {hasHigh  && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
+          {hasLow   && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa</span>}
+          {hasPromo && <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium">Promo</span>}
+          {hasVideo && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">Vídeo</span>}
+        </div>
+      </div>
+    </>
+  );
+
+  if (selectionMode) {
+    return (
+      <div
+        onClick={onSelect}
+        className={`group cursor-pointer bg-white dark:bg-gray-900 border rounded-xl overflow-hidden transition select-none ${
+          isSelected
+            ? "border-brand ring-2 ring-brand/30"
+            : "border-gray-200 dark:border-gray-700 hover:border-brand"
+        }`}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/gallery/${encodeURIComponent(row.product_code)}`}
+      className="group bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:border-brand hover:shadow-md transition"
+    >
+      {inner}
+    </Link>
+  );
+}
+
+function renderGrouped(
+  products: ProductRow[],
+  selectionMode: boolean,
+  selected: Set<string>,
+  toggleSelect: (code: string) => void
+) {
+  const hasCategories = products.some((p) => p.category_name);
+  if (!hasCategories) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {products.map((row) => (
+          <ProductCard
+            key={row.product_code}
+            row={row}
+            selectionMode={selectionMode}
+            isSelected={selected.has(row.product_code)}
+            onSelect={() => toggleSelect(row.product_code)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Group preserving insertion order; unknowns go to a "Outros" bucket at the end
+  const groupMap = new Map<string, ProductRow[]>();
+  const UNKNOWN = "Outros";
+  for (const row of products) {
+    const key = row.category_name ?? UNKNOWN;
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(row);
+  }
+
+  // Sort groups alphabetically, keeping "Outros" last
+  const sorted = [...groupMap.entries()].sort(([a], [b]) => {
+    if (a === UNKNOWN) return 1;
+    if (b === UNKNOWN) return -1;
+    return a.localeCompare(b, "pt-BR");
+  });
+
+  return (
+    <div className="space-y-6">
+      {sorted.map(([category, rows]) => (
+        <div key={category} className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 whitespace-nowrap">
+              {category}
+            </span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">{rows.length}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {rows.map((row) => (
+              <ProductCard
+                key={row.product_code}
+                row={row}
+                selectionMode={selectionMode}
+                isSelected={selected.has(row.product_code)}
+                onSelect={() => toggleSelect(row.product_code)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function GalleryGrid({ products }: { products: ProductRow[] }) {
@@ -26,7 +175,8 @@ export default function GalleryGrid({ products }: { products: ProductRow[] }) {
   function toggleSelect(code: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(code) ? next.delete(code) : next.add(code);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
       return next;
     });
   }
@@ -107,87 +257,8 @@ export default function GalleryGrid({ products }: { products: ProductRow[] }) {
         </p>
       )}
 
-      {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {products.map((row) => {
-          const isSelected = selected.has(row.product_code);
-          const hasHigh  = row.high_count > 0;
-          const hasLow   = row.low_count > 0;
-          const hasPromo = row.promo_count > 0;
-          const hasVideo = row.video_count > 0;
-
-          const cardContent = (
-            <>
-              <div className="w-full h-36 bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
-                {row.thumb_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={row.thumb_url}
-                    alt={`Produto ${row.product_code}`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
-                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                )}
-                {selectionMode && (
-                  <div className={`absolute inset-0 flex items-center justify-center transition ${isSelected ? "bg-brand/20" : "bg-black/0 group-hover:bg-black/10"}`}>
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${isSelected ? "bg-brand border-brand" : "border-white bg-white/60"}`}>
-                      {isSelected && (
-                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="p-3">
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Cód: {row.product_code}</p>
-                {row.product_name && (
-                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{row.product_name}</p>
-                )}
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.total_images} imagem(ns)</p>
-                <div className="flex gap-1 mt-1.5 flex-wrap">
-                  {hasHigh  && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
-                  {hasLow   && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa</span>}
-                  {hasPromo && <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium">Promo</span>}
-                  {hasVideo && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">Vídeo</span>}
-                </div>
-              </div>
-            </>
-          );
-
-          if (selectionMode) {
-            return (
-              <div
-                key={row.product_code}
-                onClick={() => toggleSelect(row.product_code)}
-                className={`group cursor-pointer bg-white dark:bg-gray-900 border rounded-xl overflow-hidden transition select-none ${
-                  isSelected
-                    ? "border-brand ring-2 ring-brand/30"
-                    : "border-gray-200 dark:border-gray-700 hover:border-brand"
-                }`}
-              >
-                {cardContent}
-              </div>
-            );
-          }
-
-          return (
-            <Link
-              key={row.product_code}
-              href={`/gallery/${encodeURIComponent(row.product_code)}`}
-              className="group bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:border-brand hover:shadow-md transition"
-            >
-              {cardContent}
-            </Link>
-          );
-        })}
-      </div>
+      {/* Grid — grouped by category when available */}
+      {renderGrouped(products, selectionMode, selected, toggleSelect)}
 
       {/* Floating action bar */}
       {selectionMode && selected.size > 0 && (
@@ -229,7 +300,7 @@ export default function GalleryGrid({ products }: { products: ProductRow[] }) {
                   Excluir {selected.size} produto(s)?
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Todos os arquivos associados serão excluídos permanentemente.
+                  Os arquivos serão movidos para a lixeira do repositório.
                 </p>
               </div>
             </div>

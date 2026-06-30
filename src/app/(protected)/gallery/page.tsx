@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeSearch } from "@/lib/sanitize";
 import GalleryGrid from "./GalleryGrid";
 
 type FilterType = "todos" | "apenas-high" | "apenas-low" | "apenas-manual" | "apenas-promo" | "apenas-video" | "recentes" | "sem-imagens";
@@ -104,8 +105,8 @@ export default async function GalleryPage({ searchParams }: Props) {
     .select("product_code, product_name, total_images, high_count, low_count, manual_count, promo_count, video_count, thumb_url", { count: "exact" })
     .order("product_code");
 
-  if (q?.trim()) {
-    const search = q.trim();
+  const search = sanitizeSearch(q);
+  if (search) {
     query = query.or(`product_code.ilike.%${search}%,product_name.ilike.%${search}%`);
   }
   if (activeFilter === "apenas-high")   query = query.gt("high_count", 0);
@@ -114,11 +115,27 @@ export default async function GalleryPage({ searchParams }: Props) {
   if (activeFilter === "apenas-promo")  query = query.gt("promo_count", 0);
   if (activeFilter === "apenas-video")  query = query.gt("video_count", 0);
   if (activeFilter === "recentes") {
+    // Server Component renderizado por request — Date.now() é estável dentro do request
+    // eslint-disable-next-line react-hooks/purity
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     query = query.gte("last_upload", since);
   }
 
   const { data: products, count: totalCount } = await query.range(offset, offset + PAGE_SIZE - 1);
+
+  // Fetch category names for the current page of products
+  let categoryMap: Record<string, string> = {};
+  if (products && products.length > 0) {
+    const codes = products.map((p) => Number(p.product_code)).filter(Boolean);
+    const { data: prodCats } = await supabase
+      .from("produto")
+      .select("codprod, categoria(descr_grupo)")
+      .in("codprod", codes);
+    for (const row of prodCats ?? []) {
+      const cat = Array.isArray(row.categoria) ? row.categoria[0] : (row.categoria as { descr_grupo?: string } | null);
+      if (cat?.descr_grupo) categoryMap[String(row.codprod)] = cat.descr_grupo;
+    }
+  }
 
   const totalPages = Math.ceil((totalCount ?? 0) / PAGE_SIZE);
 
@@ -138,6 +155,7 @@ export default async function GalleryPage({ searchParams }: Props) {
             promo_count:  (row.promo_count  ?? 0) as number,
             video_count:  (row.video_count  ?? 0) as number,
             thumb_url:    row.thumb_url     as string | null,
+            category_name: categoryMap[row.product_code as string] ?? null,
           }))}
         />
       )}

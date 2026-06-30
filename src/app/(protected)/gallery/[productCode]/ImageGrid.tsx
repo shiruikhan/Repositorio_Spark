@@ -198,7 +198,7 @@ function ImageCard({
       <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden group/img">
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt={filename} className="w-full h-full object-contain p-2" />
+          <img src={url} alt={`Produto ${productCode} — ${filename}`} className="w-full h-full object-contain p-2" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600 text-xs">
             sem prévia
@@ -210,6 +210,8 @@ function ImageCard({
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFeatured(); }}
           title={isFeatured ? "Remover como capa" : "Definir como capa"}
+          aria-label={isFeatured ? "Remover como capa" : "Definir como capa"}
+          aria-pressed={isFeatured}
           className={`absolute top-2 right-2 p-1.5 rounded-full transition cursor-pointer ${
             isFeatured
               ? "bg-yellow-400 text-white shadow-md opacity-100"
@@ -255,6 +257,7 @@ function ImageCard({
             onClick={() => setShowConfirm(true)}
             disabled={isPending}
             title="Excluir imagem"
+            aria-label="Excluir imagem"
             className="ml-auto p-1.5 rounded border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-600 hover:border-red-400 transition disabled:opacity-40"
           >
             {isPending ? (

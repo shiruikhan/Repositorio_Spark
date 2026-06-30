@@ -1,7 +1,9 @@
-import { logout } from "@/app/actions/auth";
 import Image from "next/image";
+import Link from "next/link";
+import { logout } from "@/app/actions/auth";
 import ThemeToggle from "./ThemeToggle";
 import NavLink from "./NavLink";
+import MobileMenu from "./MobileMenu";
 
 const LOGO_URL =
   "https://obbymrwivuhjopwnmoxx.supabase.co/storage/v1/object/public/product-assets/brand/spark_logo.png";
@@ -13,10 +15,10 @@ interface HeaderProps {
 
 export default function Header({ userEmail, isAdmin }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 h-14 flex items-center px-6 gap-4">
+    <header className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 h-14 flex items-center px-4 sm:px-6 gap-4">
       {/* Logo */}
       <div className="flex items-center gap-2 flex-1">
-        <a href="/dashboard">
+        <Link href="/dashboard">
           <Image
             src={LOGO_URL}
             alt="Spark Eletrônica"
@@ -25,10 +27,10 @@ export default function Header({ userEmail, isAdmin }: HeaderProps) {
             className="h-8 w-auto object-contain"
             priority
           />
-        </a>
+        </Link>
       </div>
 
-      {/* Nav links */}
+      {/* Nav links (desktop) */}
       <nav className="hidden sm:flex items-center gap-1">
         <NavLink href="/dashboard">Dashboard</NavLink>
         <NavLink href="/upload">Upload</NavLink>
@@ -40,14 +42,14 @@ export default function Header({ userEmail, isAdmin }: HeaderProps) {
       {/* Theme toggle + User + logout */}
       <div className="flex items-center gap-3">
         <ThemeToggle />
-        <a
+        <Link
           href="/profile"
           className="text-xs text-gray-500 dark:text-gray-400 hover:text-brand dark:hover:text-brand hidden md:block truncate max-w-[180px] transition"
           title="Meu Perfil"
         >
           {userEmail}
-        </a>
-        <form action={logout}>
+        </Link>
+        <form action={logout} className="hidden sm:block">
           <button
             type="submit"
             className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 border border-gray-200 dark:border-gray-700 hover:border-red-200 dark:hover:border-red-700 rounded-lg px-3 py-1.5 transition"
@@ -55,6 +57,7 @@ export default function Header({ userEmail, isAdmin }: HeaderProps) {
             Sair
           </button>
         </form>
+        <MobileMenu userEmail={userEmail} isAdmin={isAdmin} />
       </div>
     </header>
   );

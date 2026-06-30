@@ -351,6 +351,8 @@ export type Database = {
           product_code: string
           public_url: string | null
           resolution_type: string | null
+          thumb_url: string | null
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
@@ -362,6 +364,8 @@ export type Database = {
           product_code: string
           public_url?: string | null
           resolution_type?: string | null
+          thumb_url?: string | null
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
@@ -373,6 +377,8 @@ export type Database = {
           product_code?: string
           public_url?: string | null
           resolution_type?: string | null
+          thumb_url?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -761,6 +767,8 @@ export type Database = {
       }
       check_is_admin: { Args: never; Returns: boolean }
       get_secret: { Args: { secret_name: string }; Returns: string }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       sync_produto_imagens: { Args: never; Returns: number }
       update_codibge_batch: { Args: { updates: Json }; Returns: Json }
     }

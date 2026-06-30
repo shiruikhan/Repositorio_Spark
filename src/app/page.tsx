@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import Image from "next/image";
 import PublicGallery from "./PublicGallery";
+import { sanitizeSearch } from "@/lib/sanitize";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -46,8 +47,9 @@ export default async function PublicPage({ searchParams }: Props) {
     .select("product_code, product_name, total_images, high_count, low_count, manual_count, promo_count, video_count, thumb_url", { count: "exact" })
     .order("product_code");
 
-  if (q?.trim()) {
-    query = query.or(`product_code.ilike.%${q.trim()}%,product_name.ilike.%${q.trim()}%`);
+  const search = sanitizeSearch(q);
+  if (search) {
+    query = query.or(`product_code.ilike.%${search}%,product_name.ilike.%${search}%`);
   }
 
   const { data: products, count } = await query.range(offset, offset + PAGE_SIZE - 1);

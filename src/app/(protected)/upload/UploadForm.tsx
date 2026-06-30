@@ -11,7 +11,7 @@ export default function UploadForm() {
     state, pending, files, previews, dragging, fileProgress, dimensionErrors,
     resolutionType, productName, productNameLoading, suggestions,
     fileInputRef, productCodeRef,
-    isManual, isVideo, isPromo, submitLabel,
+    submitLabel,
     setDragging, handleProductCodeChange, handleProductCodeBlur,
     addFiles, removeFile, handleResolutionChange, handleSubmit,
   } = useUploadForm();

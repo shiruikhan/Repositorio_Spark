@@ -1,3 +1,5 @@
+> **Documento histórico de planejamento.** Todas as fases foram concluídas; o escopo evoluiu além do descrito aqui (5 tipos de mídia, API key, ZIP, rate limiting etc.). O estado atual e autoritativo do projeto está em `CLAUDE.md`.
+
 🛠️ Fase 1: Infraestrutura e Segurança (Supabase)
 
 Objetivo: Configurar o ambiente sem interferir nos dados existentes.

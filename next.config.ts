@@ -8,10 +8,7 @@ const nextConfig: NextConfig = {
         // Exclui assets estáticos imutáveis do Next.js — eles têm hash no nome e podem ser cacheados
         source: "/((?!_next/static|_next/image|favicon).*)",
         headers: [
-          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
-          { key: "Surrogate-Control", value: "no-store" },
-          { key: "Pragma", value: "no-cache" },
-          { key: "Expires", value: "0" },
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate" },
         ],
       },
     ];

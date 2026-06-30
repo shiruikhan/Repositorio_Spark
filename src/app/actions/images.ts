@@ -2,11 +2,32 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth";
+import { buildThumbPath } from "@/lib/naming";
+
+/**
+ * Soft delete (D1 — opção A): o registro recebe `deleted_at` e o arquivo é
+ * movido para o prefixo `trash/` no bucket, preservando a possibilidade de
+ * restauração. Limpeza definitiva do `trash/` fica a cargo de rotina futura.
+ * A thumbnail derivada (quando existir) vai junto — `move` de caminho
+ * inexistente apenas retorna erro no resultado, sem lançar exceção.
+ */
+async function moveFilesToTrash(filePaths: string[]) {
+  const storage = createAdminClient().storage.from("product-assets");
+  const allPaths = filePaths.flatMap((path) => [path, buildThumbPath(path)]);
+  const BATCH = 5;
+  for (let i = 0; i < allPaths.length; i += BATCH) {
+    await Promise.all(
+      allPaths.slice(i, i + BATCH).map((path) => storage.move(path, `trash/${path}`))
+    );
+  }
+}
 
 export async function setFeaturedImage(id: string, productCode: string, makeFeatured: boolean) {
+  const admin = await requireAdmin();
+  if (!admin.ok) return { ok: false, message: admin.message };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Sessão expirada." };
 
   if (makeFeatured) {
     // Remove capa anterior do produto (se houver)
@@ -46,9 +67,10 @@ export async function setFeaturedImage(id: string, productCode: string, makeFeat
 export async function deleteProductsBulk(productCodes: string[]) {
   if (!productCodes.length) return { ok: false, message: "Nenhum produto selecionado." };
 
+  const admin = await requireAdmin();
+  if (!admin.ok) return { ok: false, message: admin.message };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Sessão expirada." };
 
   const { data: images, error: fetchError } = await supabase
     .from("ext_product_images")
@@ -59,9 +81,6 @@ export async function deleteProductsBulk(productCodes: string[]) {
   if (fetchError) return { ok: false, message: fetchError.message };
 
   const filePaths = (images ?? []).map((img) => img.file_path);
-  if (filePaths.length > 0) {
-    await createAdminClient().storage.from("product-assets").remove(filePaths);
-  }
 
   const { error: deleteError } = await supabase
     .from("ext_product_images")
@@ -71,20 +90,25 @@ export async function deleteProductsBulk(productCodes: string[]) {
 
   if (deleteError) return { ok: false, message: deleteError.message };
 
+  if (filePaths.length > 0) {
+    await moveFilesToTrash(filePaths);
+  }
+
   revalidatePath("/gallery");
   revalidatePath("/dashboard");
   productCodes.forEach((code) => revalidatePath(`/gallery/${encodeURIComponent(code)}`));
 
   return {
     ok: true,
-    message: `${productCodes.length} produto(s) excluído(s) com ${filePaths.length} arquivo(s).`,
+    message: `${productCodes.length} produto(s) excluído(s) com ${filePaths.length} arquivo(s) movido(s) para a lixeira.`,
   };
 }
 
 export async function deleteImage(id: string, filePath: string, productCode: string) {
+  const admin = await requireAdmin();
+  if (!admin.ok) return { ok: false, message: admin.message };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Sessão expirada." };
 
   const { error } = await supabase
     .from("ext_product_images")
@@ -93,7 +117,7 @@ export async function deleteImage(id: string, filePath: string, productCode: str
     .is("deleted_at", null);
   if (error) return { ok: false, message: error.message };
 
-  await createAdminClient().storage.from("product-assets").remove([filePath]);
+  await moveFilesToTrash([filePath]);
 
   revalidatePath(`/gallery/${encodeURIComponent(productCode)}`);
   revalidatePath("/gallery");
@@ -105,9 +129,10 @@ export async function reorderImages(
   updates: { id: string; position: number }[],
   productCode: string
 ) {
+  const admin = await requireAdmin();
+  if (!admin.ok) return { ok: false, message: admin.message };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Sessão expirada." };
 
   const { error } = await supabase
     .from("ext_product_images")

@@ -26,6 +26,9 @@ export default function ThemeProvider({
       (window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
         : "light");
+    // Sincronização pós-hydration intencional: o SSR não conhece o localStorage,
+    // então o tema só pode ser aplicado no cliente após a montagem.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(preferred);
     document.documentElement.classList.toggle("dark", preferred === "dark");
   }, []);

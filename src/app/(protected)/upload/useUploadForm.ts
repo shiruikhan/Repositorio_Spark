@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { buildFilePath, type ResolutionType } from "@/lib/naming";
+import { buildFilePath, buildThumbPath, type ResolutionType } from "@/lib/naming";
 import { saveImageRecord, getNextPosition } from "@/app/actions/upload";
 import type { UploadedImage, UploadError, UploadState } from "@/app/actions/upload";
 import {
@@ -12,6 +12,7 @@ import {
   isPdfFile,
   checkDimensions,
   processImage,
+  generateThumb,
 } from "./uploadUtils";
 
 export interface UseUploadFormReturn {
@@ -62,6 +63,21 @@ export function useUploadForm(): UseUploadFormReturn {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const productCodeRef = useRef<HTMLInputElement | null>(null);
   const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewsRef = useRef<string[]>([]);
+
+  /** Substitui os previews revogando as Object URLs antigas (evita vazamento de memória). */
+  function replacePreviews(next: string[]) {
+    previewsRef.current.forEach((u) => u && URL.revokeObjectURL(u));
+    previewsRef.current = next;
+    setPreviews(next);
+  }
+
+  // Revoga tudo ao desmontar o componente
+  useEffect(() => {
+    return () => {
+      previewsRef.current.forEach((u) => u && URL.revokeObjectURL(u));
+    };
+  }, []);
 
   const isManual    = resolutionType === "manual";
   const isPromo     = resolutionType === "promo";
@@ -121,7 +137,7 @@ export function useUploadForm(): UseUploadFormReturn {
       const pdfs = Array.from(incoming).filter(isPdfFile);
       if (pdfs.length === 0) return;
       setFiles(pdfs.slice(0, 1));
-      setPreviews([]);
+      replacePreviews([]);
       setDimensionErrors([]);
       return;
     }
@@ -136,7 +152,7 @@ export function useUploadForm(): UseUploadFormReturn {
       }
       setDimensionErrors([]);
       setFiles([single]);
-      setPreviews([]);
+      replacePreviews([]);
       return;
     }
 
@@ -148,7 +164,7 @@ export function useUploadForm(): UseUploadFormReturn {
       setDimensionErrors([]);
       setFiles((prev) => {
         const merged = [...prev, ...candidates];
-        setPreviews(merged.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
+        replacePreviews(merged.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
         return merged;
       });
       return;
@@ -175,7 +191,7 @@ export function useUploadForm(): UseUploadFormReturn {
 
     setFiles((prev) => {
       const merged = [...prev, ...valid];
-      setPreviews(merged.map((f) => URL.createObjectURL(f)));
+      replacePreviews(merged.map((f) => URL.createObjectURL(f)));
       return merged;
     });
   }
@@ -183,8 +199,8 @@ export function useUploadForm(): UseUploadFormReturn {
   function removeFile(index: number) {
     setFiles((prev) => {
       const next = prev.filter((_, i) => i !== index);
-      if (isImageOnly) setPreviews(next.map((f) => URL.createObjectURL(f)));
-      if (isPromo) setPreviews(next.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
+      if (isImageOnly) replacePreviews(next.map((f) => URL.createObjectURL(f)));
+      if (isPromo) replacePreviews(next.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : "")));
       return next;
     });
   }
@@ -192,7 +208,7 @@ export function useUploadForm(): UseUploadFormReturn {
   function handleResolutionChange(val: ResolutionType | "") {
     setResolutionType(val);
     setFiles([]);
-    setPreviews([]);
+    replacePreviews([]);
     setDimensionErrors([]);
   }
 
@@ -256,7 +272,24 @@ export function useUploadForm(): UseUploadFormReturn {
       setFileProgress((prev) => new Map(prev).set(i, 100));
 
       const { data: { publicUrl } } = supabase.storage.from("product-assets").getPublicUrl(filePath);
-      const saved = await saveImageRecord({ productCode, resolutionType, filePath, publicUrl, position });
+
+      // D2 (opção A): gera e sobe a miniatura para high/low. Falha aqui não
+      // bloqueia o upload — a galeria cai no fallback do public_url original.
+      let thumbUrl: string | null = null;
+      if (!skipCanvas) {
+        const thumbFile = await generateThumb(fileToUpload);
+        if (thumbFile) {
+          const thumbPath = buildThumbPath(filePath);
+          const { error: thumbError } = await supabase.storage
+            .from("product-assets")
+            .upload(thumbPath, thumbFile, { upsert: false, contentType: "image/jpeg" });
+          if (!thumbError) {
+            thumbUrl = supabase.storage.from("product-assets").getPublicUrl(thumbPath).data.publicUrl;
+          }
+        }
+      }
+
+      const saved = await saveImageRecord({ productCode, resolutionType, filePath, publicUrl, position, thumbUrl });
 
       if (!saved.ok) {
         errors.push({ fileName: file.name, message: saved.message ?? "Erro ao salvar no banco." });
@@ -271,7 +304,7 @@ export function useUploadForm(): UseUploadFormReturn {
 
     if (results.length > 0) {
       setFiles([]);
-      setPreviews([]);
+      replacePreviews([]);
     }
 
     setState({

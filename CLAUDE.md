@@ -17,12 +17,13 @@ Sistema web para upload, gerenciamento e distribuição de imagens de produtos p
 | `estoque` | Posições de estoque |
 | `preco` | Tabela de preços (múltiplas tabelas de preço por codprod) |
 | `especificacao` | Especificações técnicas |
-| `produto_imagem` | URLs de imagem legado (campo `url` text, sincronizado via cron) — todos os 336 registros já estão espelhados em `ext_product_images` |
+| `produto_imagem` | URLs de imagem legado (campo `url` text, sincronizado via cron) — todos os registros (373 em jun/2026) estão espelhados em `ext_product_images` |
 | `carrinho` | Carrinho de compras com RLS |
 | `pedido` / `pedido_item` | Pedidos e itens |
 | `cliente` | Usuários autenticados (vinculados ao `auth.users`, campo `is_admin` boolean) |
 | `embalagem` / `pedido_embalagem` | Lógica de embalagem |
 | `cidade` / `bairro` | Tabelas de endereçamento (IBGE) |
+| `endereco` | Endereços dos clientes (FK → `cliente`, `cidade`) |
 | `parceiro` | Parceiros/clientes do ERP Sankhya |
 | `log_sincronizacao` | Log de sincronizações com o ERP |
 | `log_integracao_pedido` | Log de integração de pedidos com o ERP |
@@ -36,7 +37,9 @@ Sistema web para upload, gerenciamento e distribuição de imagens de produtos p
 - `position` int DEFAULT 0
 - `is_featured` boolean DEFAULT false — marca a imagem de capa do produto
 - `public_url` text — URL pública persistente para o integrador
+- `thumb_url` text — URL pública da miniatura (~400px, jpeg) gerada no canvas do cliente no upload (migração `add_thumb_url_ext_product_images`, jun/2026); NULL para manual/promo/video — UI usa `public_url` como fallback
 - `created_at` timestamptz DEFAULT now()
+- `updated_at` timestamptz DEFAULT now() — atualizado automaticamente por trigger `trg_ext_product_images_updated_at` (BEFORE UPDATE, função `ext_set_updated_at()`, migração `add_updated_at_trigger_ext_product_images`)
 - `deleted_at` timestamptz — soft delete (NULL = ativo)
 
 ### `ext_api_keys`
@@ -46,12 +49,15 @@ Sistema web para upload, gerenciamento e distribuição de imagens de produtos p
 - `created_at` timestamptz DEFAULT now()
 - `last_used_at` timestamptz — atualizado a cada uso via API
 
-### View `ext_product_images_summary`
-Agrega por `product_code`: `total_images`, `high_count`, `low_count`, `manual_count`, `promo_count`, `video_count`, `last_upload`, `thumb_url` (fallback low→high), `product_name` (JOIN em `produto`).
+### Materialized view `ext_product_images_summary`
+Agrega por `product_code`: `total_images`, `high_count`, `low_count`, `manual_count`, `promo_count`, `video_count`, `last_upload`, `thumb_url` (fallback featured→low→high, preferindo `COALESCE(thumb_url, public_url)` de cada imagem), `product_name` (JOIN em `produto`). É uma **materialized view** atualizada a cada minuto pelo cron `refresh-product-images-summary` (`REFRESH MATERIALIZED VIEW CONCURRENTLY`) — dados podem estar até ~1 min defasados.
 
 ## Storage
 - **Bucket**: `product-assets`
 - Leitura pública; escrita restrita a usuários autenticados (RLS)
+- Prefixo `{code}/thumbs/` — miniaturas (~400px jpeg) geradas no cliente; backfill das imagens antigas via `scripts/backfill-thumbs.mjs` (idempotente)
+- Prefixo `trash/` — destino dos arquivos de registros soft-deletados (exclusão move `path` → `trash/{path}`, incluindo a thumb); restauração futura possível, limpeza definitiva por rotina a definir
+- **Image Transformations: DESATIVADO no projeto (jun/2026)** — nunca usar `getPublicUrl`/`createSignedUrl` com `transform`, nem URLs `/storage/v1/render/image/...`. O recurso estourou a cota do plano (177/100) sem uso pelo app e foi desligado; redimensionamento é feito no canvas do cliente antes do upload e o `next/image` usa o otimizador do próprio Next.js no servidor
 
 ## Variáveis de ambiente
 ```
@@ -111,6 +117,19 @@ NEXT_PUBLIC_SENTRY_DSN=             # DSN do projeto Sentry — se ausente, o SD
 | Rate limiting | Limiter em memória: `/images` 60 req/min, `/zip` 5 req/min por IP; `Retry-After: 60` | `lib/ratelimit.ts`, rotas de API |
 | Sentry | Rastreamento de erros em produção; ativado via `NEXT_PUBLIC_SENTRY_DSN` | `sentry.*.config.ts`, `instrumentation.ts`, `next.config.ts` |
 
+## Histórico de melhorias (plano de ação — jun/2026)
+| Item | Descrição | Arquivo(s) |
+|------|-----------|-----------|
+| Busca sanitizada | `sanitizeSearch()` remove `,()` antes de interpolar em `.or(...)` do PostgREST | `lib/sanitize.ts`, `app/page.tsx`, `gallery/page.tsx` |
+| Menu mobile | Hambúrguer + drawer abaixo de `sm` (antes não havia navegação em mobile) | `components/MobileMenu.tsx`, `Header.tsx` |
+| requireAdmin | Server Actions de escrita checam `is_admin` e retornam mensagem explícita | `lib/auth.ts`, `actions/images.ts`, `actions/upload.ts` |
+| Lixeira (D1-A) | Exclusão move arquivo (e thumb) para `trash/{path}` em vez de remover | `actions/images.ts` (`moveFilesToTrash`) |
+| Thumbnails (D2-A) | Coluna `thumb_url`; thumb ~400px gerada no canvas no upload; MV prefere thumb; backfill de 532 imagens concluído | `uploadUtils.ts`, `useUploadForm.ts`, `lib/naming.ts`, `scripts/backfill-thumbs.mjs`, migração `add_thumb_url_ext_product_images` |
+| Preview leak | Object URLs revogadas ao trocar/remover arquivos e no unmount | `upload/useUploadForm.ts` |
+| Header `<Link>` | Âncoras internas trocadas por `next/link`; headers HTTP legados (`Pragma`, `Expires`, `Surrogate-Control`) removidos | `Header.tsx`, `next.config.ts` |
+| A11y | `aria-label`/`aria-pressed` em botões só-ícone; alt text descritivo nos cards | `ImageGrid.tsx`, `GalleryGrid.tsx`, `dashboard/page.tsx` |
+| ESLint 9 | `next lint` (removido no Next 16) substituído por flat config nativa + `eslint src` | `eslint.config.mjs`, `package.json` |
+
 ## API para o integrador
 ```
 GET https://repositorio.spark.ind.br/api/products/{productCode}/images
@@ -130,22 +149,26 @@ GET https://repositorio.spark.ind.br/api/health
 ```
 {codigo_produto}/{codigo_produto}_{tipo}_{timestamp}_{posicao}.ext
 Exemplo: 1234/1234_high_1715000000_0.jpg
+Thumbnail: 1234/thumbs/1234_high_1715000000_0_thumb.jpg (derivada via buildThumbPath em src/lib/naming.ts)
 ```
 
 ## RLS — ext_product_images
 - SELECT: público (leitura sem autenticação)
-- INSERT: qualquer usuário autenticado
-- UPDATE / DELETE: somente `check_is_admin()` retorna true (SECURITY DEFINER)
+- INSERT / UPDATE / DELETE: somente `check_is_admin()` retorna true (SECURITY DEFINER) — migração `fix_ext_product_images_rls_admin_only` (mai/2026); na prática só admins conseguem fazer upload
 
 ## RLS — ext_api_keys
 - SELECT / DELETE: `auth.uid() = user_id`
-- INSERT: usuário autenticado (user_id fixado no Server Action — sem WITH CHECK no banco)
+- INSERT: WITH CHECK `auth.uid() = user_id` (migração `fix_ext_api_keys_insert_rls_with_check`)
 
 ## Regras de desenvolvimento
 - Nunca alterar tabelas existentes (apenas `ext_product_images` e `ext_api_keys` são permitidas)
-- Soft delete: usar `deleted_at = now()`, nunca DELETE físico em `ext_product_images`
+- Soft delete: usar `deleted_at = now()`, nunca DELETE físico em `ext_product_images`; o arquivo do Storage é **movido para `trash/{path}`** (nunca removido) — ver `moveFilesToTrash` em `actions/images.ts`
+- Server Actions de escrita devem chamar `requireAdmin()` (`src/lib/auth.ts`) no início — sem isso o RLS bloqueia não-admins silenciosamente (UPDATE sem match não retorna erro)
+- Termos de busca interpolados em `.or(...)` devem passar por `sanitizeSearch()` (`src/lib/sanitize.ts`) — vírgulas/parênteses quebram o parser do PostgREST
+- Upload de high/low gera e sobe também a miniatura (`generateThumb` + `buildThumbPath`); falha na thumb não bloqueia o upload (fallback no `public_url`)
 - `public_url` é a referência oficial para o integrador de marketplaces
 - Imagens high/low passam pelo canvas no cliente (resize/compress); manual, promo e video sobem direto
+- **Nunca usar Supabase Image Transformations** (`transform` em `getPublicUrl`/`createSignedUrl` ou URLs `/render/image/`) — recurso desativado no projeto (jun/2026) após estourar a cota; usar sempre `public_url` original e redimensionar no cliente
 - Validação de código de produto: inteiro positivo (não exige presença em `produto.codprod`)
 - Server Actions de escrita usam `createClient()` (RLS do usuário); deleções de Storage usam `createAdminClient()` (service role)
 - `/api/products/.../images`: usa anon key para queries de produto; service role apenas para validação/atualização de `ext_api_keys`

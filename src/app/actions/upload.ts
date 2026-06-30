@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 import type { ResolutionType } from "@/lib/naming";
 
 export type UploadedImage = {
@@ -28,6 +29,8 @@ export type SaveImagePayload = {
   filePath: string;
   publicUrl: string;
   position: number;
+  /** URL pública da miniatura gerada no cliente (apenas high/low). */
+  thumbUrl?: string | null;
 };
 
 /** Salva os metadados de uma imagem já enviada ao Storage. */
@@ -35,13 +38,10 @@ export async function saveImageRecord(
   payload: SaveImagePayload
 ): Promise<{ ok: boolean; message?: string }> {
   try {
+    const admin = await requireAdmin();
+    if (!admin.ok) return { ok: false, message: admin.message };
+
     const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return { ok: false, message: "Sessão expirada. Faça login novamente." };
 
     // Sanidade do código: precisa ser inteiro positivo (evita registros
     // órfãos por digitação incorreta). Não exige presença no catálogo
@@ -58,6 +58,7 @@ export async function saveImageRecord(
       resolution_type: payload.resolutionType,
       position: payload.position,
       public_url: payload.publicUrl,
+      thumb_url: payload.thumbUrl ?? null,
     });
 
     if (error) return { ok: false, message: error.message };
