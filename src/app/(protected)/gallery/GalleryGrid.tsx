@@ -23,10 +23,11 @@ function ProductCard({ row, selectionMode, isSelected, onSelect }: {
   isSelected: boolean;
   onSelect: () => void;
 }) {
-  const hasHigh  = row.high_count > 0;
-  const hasLow   = row.low_count > 0;
-  const hasPromo = row.promo_count > 0;
-  const hasVideo = row.video_count > 0;
+  const hasHigh   = row.high_count > 0;
+  const hasLow    = row.low_count > 0;
+  const hasManual = row.manual_count > 0;
+  const hasPromo  = row.promo_count > 0;
+  const hasVideo  = row.video_count > 0;
 
   const inner = (
     <>
@@ -64,10 +65,16 @@ function ProductCard({ row, selectionMode, isSelected, onSelect }: {
         )}
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.total_images} imagem(ns)</p>
         <div className="flex gap-1 mt-1.5 flex-wrap">
-          {hasHigh  && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
-          {hasLow   && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa</span>}
-          {hasPromo && <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium">Promo</span>}
-          {hasVideo && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">Vídeo</span>}
+          {hasHigh   && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Alta</span>}
+          {hasLow    && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Baixa</span>}
+          {hasManual && <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
+            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Manual
+          </span>}
+          {hasPromo  && <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium">Promo</span>}
+          {hasVideo  && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">Vídeo</span>}
         </div>
       </div>
     </>
