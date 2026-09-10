@@ -1,5 +1,7 @@
 # Plano de Ação — Implementação das Melhorias
 
+> **Documento histórico de planejamento (jun/2026).** Os itens marcados `[x]` foram entregues (menu mobile, `requireAdmin`, lixeira `trash/`, thumbnails, ESLint 9 etc.); os demais podem ou não ter sido implementados desde então. O estado atual e autoritativo está em `CLAUDE.md` (seção "Histórico de melhorias").
+
 > Baseado em `melhorias_propostas.md` (levantamento de 11/06/2026).
 > Organizado em 6 fases sequenciais. Cada fase termina com build verde, teste manual e deploy — entregas pequenas e frequentes em vez de um big-bang.
 > Referências entre parênteses (ex.: *3.1*) apontam para o item correspondente em `melhorias_propostas.md`.

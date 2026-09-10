@@ -66,6 +66,23 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=          # usado apenas em Server Actions (admin client) e validação de API Key em /api/products/.../images
 NEXT_PUBLIC_SENTRY_DSN=             # DSN do projeto Sentry — se ausente, o SDK é desabilitado silenciosamente
 ```
+Variáveis opcionais usadas **apenas por scripts** (`scripts/`), nunca pela aplicação:
+```
+FOTOS_ROOT= / ONEDRIVE_FOTOS_ROOT=  # pasta raiz varrida por scripts/upload-from-onedrive.mjs (default: OneDrive local)
+```
+
+## Proteção de rotas (`src/proxy.ts`)
+- O middleware do Next 16 chama-se `proxy` (arquivo `src/proxy.ts`, não `middleware.ts`).
+- `/` é liberada sem round-trip ao Supabase (minimiza TTFB); `/login` e demais rotas passam por `supabase.auth.getUser()`.
+- Sem sessão → redireciona para `/login`; com sessão em `/login` → redireciona para `/dashboard`.
+- Supabase inacessível/mal configurado é tratado como não autenticado (try/catch silencioso).
+- `matcher` exclui `_next/static`, `_next/image`, `favicon.ico`, `api/` e arquivos de imagem — a proteção de `/admin` por `is_admin` é feita nas Server Actions (`requireAdmin()`), não aqui.
+
+## Config Next.js (`next.config.ts`)
+- `experimental.serverActions.bodySizeLimit: "50mb"` — teto do payload de upload múltiplo via Server Action.
+- `images.remotePatterns` libera `obbymrwivuhjopwnmoxx.supabase.co/storage/v1/object/public/**` para o otimizador do `next/image`.
+- `headers()` aplica `no-store` a tudo exceto `_next/static`/`_next/image`/`favicon`.
+- `withSentryConfig` com `sourcemaps.disable: true` e `telemetry: false`.
 
 ## Rotas da aplicação
 | Rota | Tipo | Descrição |
@@ -100,7 +117,7 @@ NEXT_PUBLIC_SENTRY_DSN=             # DSN do projeto Sentry — se ausente, o SD
 | Item | Descrição | Arquivo(s) |
 |------|-----------|-----------|
 | Cache config | `no-store` restrito a rotas dinâmicas; assets estáticos (`_next/static`) cacheados | `next.config.ts` |
-| Batch reorder | `reorderImages` usa `upsert` em lote (1 query) em vez de N round-trips | `actions/images.ts` |
+| Batch reorder | `reorderImages` dispara os `UPDATE` de posição em paralelo via `Promise.all`, cada um com filtro `deleted_at IS NULL` (a abordagem `upsert` em lote foi revertida em 30/jun/2026, commit `7df655d`) | `actions/images.ts` |
 | Health check | Endpoint `/api/health` para monitoramento externo | `api/health/route.ts` |
 | Modal exclusão | `window.confirm` substituído por modal customizado em `ImageGrid` | `gallery/[productCode]/ImageGrid.tsx` |
 | CopyButton | Remoção da implementação local duplicada em `UploadForm.tsx` | `upload/UploadForm.tsx` |
@@ -151,6 +168,17 @@ GET https://repositorio.spark.ind.br/api/health
 Exemplo: 1234/1234_high_1715000000_0.jpg
 Thumbnail: 1234/thumbs/1234_high_1715000000_0_thumb.jpg (derivada via buildThumbPath em src/lib/naming.ts)
 ```
+
+## Scripts de manutenção (`scripts/`)
+Rodados manualmente com `node scripts/<arquivo>.mjs`. Cada um parseia `.env.local` na mão e usa a **service role key** (ignora RLS). Nenhum é referenciado pela aplicação em runtime. Os que processam imagem dependem de `sharp` (devDependency).
+
+| Script | O que faz | Idempotente? |
+|--------|-----------|--------------|
+| `backfill-thumbs.mjs` | Gera a thumb `~400px` (`thumbs/…_thumb.jpg`) e preenche `thumb_url` das imagens high/low sem miniatura | Sim |
+| `rename-sku.mjs` | Troca de SKU (ago/2026): move arquivos + thumbs no bucket e atualiza `product_code`/`file_path`/`public_url`/`thumb_url`. Pares de código são hard-coded no arquivo | Não (após sucesso parcial de um registro) |
+| `upload-from-onedrive.mjs` | Varre pasta local (`FOTOS_ROOT`), classifica `high`/`low` por tamanho (≥ 1 MB), achata fundo p/ branco e sobe produtos que ainda não têm arquivo no storage. `--confirm` para subir de verdade (default: dry-run), `--root <pasta>`, `-h` | Sim (pula produto com qualquer arquivo no storage) |
+| `fix-transparent-bg.mjs` | Reprocessa imagens ativas achatando alfa/fundo preto para branco (JPEG), regrava no storage e atualiza `file_path`/`public_url`. JPEG já com fundo preto composited não é recuperável | Sim (pula JPEG já processado) |
+| `delete-low-res-storage.mjs` | Remove do storage 114 arquivos `low` já apagados do banco — lista de paths hard-coded, uso único (mar/2026) | — (one-shot) |
 
 ## RLS — ext_product_images
 - SELECT: público (leitura sem autenticação)

@@ -116,8 +116,9 @@ Only `ext_product_images` and `ext_api_keys` belong to this module. All other Su
 | `position` | int | Default 0 |
 | `is_featured` | boolean | Marks the product cover image |
 | `public_url` | text | Canonical URL for integrators |
+| `thumb_url` | text | Public URL of the ~400px jpeg thumbnail generated client-side on upload; NULL for manual/promo/video (UI falls back to `public_url`) |
 | `created_at` | timestamptz | Default now() |
-| `updated_at` | timestamptz | Default now() — no trigger, set by application code |
+| `updated_at` | timestamptz | Default now() — maintained by the `trg_ext_product_images_updated_at` BEFORE UPDATE trigger (`ext_set_updated_at()`) |
 | `deleted_at` | timestamptz | Soft delete (NULL = active) |
 
 RLS: public SELECT; INSERT/UPDATE/DELETE restricted to admins (`check_is_admin()`).
@@ -142,6 +143,9 @@ Per-product aggregation (`total_images`, per-type counts, `last_upload`, `thumb_
 
 - **Bucket**: `product-assets`
 - Public read; authenticated write (RLS enforced)
+- `{code}/thumbs/` prefix — client-generated ~400px jpeg thumbnails
+- `trash/` prefix — soft-deleted files are **moved** here (`path` → `trash/{path}`, thumbnail included), never physically removed; permanent cleanup is a future job
+- **Supabase Image Transformations are disabled on this project** — never use `transform` in `getPublicUrl`/`createSignedUrl` or `/render/image/` URLs; resizing happens client-side on canvas before upload
 
 ### File naming convention
 
@@ -173,13 +177,18 @@ src/
 │   │   └── products/[productCode]/{images,zip}/
 │   ├── login/
 │   └── page.tsx              # Public gallery
+├── proxy.ts                  # Next 16 middleware (renamed from middleware.ts) — auth redirects
 ├── components/               # Shared UI components (ErrorBoundary, CopyButton, …)
 ├── lib/
-│   ├── naming.ts             # File naming logic
+│   ├── auth.ts               # requireAdmin() guard for write Server Actions
+│   ├── naming.ts             # File + thumbnail naming logic
+│   ├── sanitize.ts           # sanitizeSearch() for PostgREST .or() interpolation
 │   ├── ratelimit.ts          # In-memory rate limiter (single-instance deploy)
 │   └── supabase/             # Supabase clients (browser, server, admin)
 └── types/
     └── database.ts           # Generated via Supabase MCP (generate_typescript_types)
+
+scripts/                      # Standalone maintenance scripts (node scripts/*.mjs, service-role key)
 ```
 
 ---
@@ -190,8 +199,22 @@ src/
 npm run dev      # Start development server
 npm run build    # Production build
 npm run start    # Start production server
-npm run lint     # ESLint
+npm run lint     # eslint src
 ```
+
+There is no test suite.
+
+### Maintenance scripts (`scripts/`)
+
+Run manually with `node scripts/<file>.mjs`. Each parses `.env.local` itself and uses the **service-role key** (bypasses RLS); none run at application runtime. Image-processing ones need `sharp` (devDependency).
+
+| Script | Purpose |
+|---|---|
+| `backfill-thumbs.mjs` | Generate missing ~400px thumbnails and populate `thumb_url` (idempotent) |
+| `rename-sku.mjs` | SKU migration: move bucket files + thumbs and rewrite `product_code` / `file_path` / `public_url` / `thumb_url` (code pairs hard-coded) |
+| `upload-from-onedrive.mjs` | Scan a local folder (`FOTOS_ROOT`), classify `high`/`low` by size, flatten background, upload products with no existing files. `--confirm` to write (default dry-run), `--root <dir>`, `-h` |
+| `fix-transparent-bg.mjs` | Reprocess active images, flattening alpha/black background to white JPEG, rewrite storage + `file_path` / `public_url` |
+| `delete-low-res-storage.mjs` | One-shot (Mar 2026): remove 114 orphaned `low` files from storage (hard-coded path list) |
 
 ---
 
@@ -201,6 +224,8 @@ npm run lint     # ESLint
 - Soft delete only: set `deleted_at = now()`, never physically DELETE from `ext_product_images`.
 - `public_url` is the official image reference for marketplace integrators — always keep it populated.
 - High/low images are resized/compressed on the client via canvas; manual, promo and video files upload as-is.
+- **Never** use Supabase Image Transformations (`transform` / `/render/image/` URLs) — the feature is disabled on the project.
+- Multi-file upload payloads are capped at `serverActions.bodySizeLimit: "50mb"` (`next.config.ts`).
 - Regenerate `src/types/database.ts` (Supabase MCP `generate_typescript_types`) whenever the schema changes.
 - The in-memory rate limiter assumes a single-instance deploy; switch to `@upstash/ratelimit` + Redis for multi-instance.
 

@@ -1,5 +1,7 @@
 # Melhorias Propostas — Repositório de Imagens Spark
 
+> **Documento histórico (jun/2026).** Levantamento exploratório; parte dos itens já foi implementada (ver `plano_acao_melhorias.md` e `CLAUDE.md`). Consultar `CLAUDE.md` para o estado atual antes de agir sobre qualquer item aqui.
+
 > Levantamento feito em 11/06/2026 sobre o código atual (Next.js 16, React 19, Supabase, Tailwind 3).
 > Nenhuma alteração foi aplicada — este documento lista possibilidades, organizadas por categoria e prioridade.
 
