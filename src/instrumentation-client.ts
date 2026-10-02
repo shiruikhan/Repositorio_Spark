@@ -4,9 +4,6 @@ Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Amostragem de performance: 10% das transações
-  tracesSampleRate: 0.1,
-
   // Não enviar erros em desenvolvimento local
   environment: process.env.NODE_ENV,
 

@@ -36,4 +36,12 @@ export default withSentryConfig(nextConfig, {
   telemetry: false,
   // Não faz upload de source maps (sem Sentry org/project configurado)
   sourcemaps: { disable: true },
+  // Reduz o bundle do SDK no navegador: sem tracing de performance nem Replay (só captura de erros)
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeTracing: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+    excludeReplayWorker: true,
+  },
 });

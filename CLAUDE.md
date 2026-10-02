@@ -204,4 +204,5 @@ Rodados manualmente com `node scripts/<arquivo>.mjs`. Cada um parseia `.env.loca
 - Ao regenerar tipos: usar MCP `generate_typescript_types` e sobrescrever `src/types/database.ts`
 - Rate limiting em memória (`src/lib/ratelimit.ts`) — adequado para deploy single-instance no Hostinger; se migrar para multi-instância, substituir por `@upstash/ratelimit` + Redis
 - `npm run build` usa `next build --webpack` (não Turbopack): no ambiente de build da Hostinger o Turbopack falhava com `TurbopackInternalError: creating new process` ao executar o PostCSS (mesmo em Node 22 e 24; local compilava normalmente). `npm run dev` segue com Turbopack
+- Sentry sem tracing/Replay (`bundleSizeOptimizations` em `next.config.ts`, sem `tracesSampleRate`): só captura de erros, para reduzir ~150 KB do JS carregado em todas as páginas
 - Sentry ativado somente quando `NEXT_PUBLIC_SENTRY_DSN` estiver definido — degradação graciosa em ambientes sem a variável

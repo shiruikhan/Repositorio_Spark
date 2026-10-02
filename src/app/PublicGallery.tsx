@@ -155,7 +155,7 @@ export default function PublicGallery({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {products.map((p) => (
+          {products.map((p, index) => (
             <button
               key={p.product_code}
               onClick={() => openModal(p)}
@@ -168,6 +168,7 @@ export default function PublicGallery({
                     src={p.thumb_url}
                     alt={`Produto ${p.product_code}`}
                     fill
+                    priority={index < 4}
                     sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                     className="object-cover group-hover:scale-105 transition duration-300"
                   />
