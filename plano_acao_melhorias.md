@@ -179,7 +179,7 @@ Baixo risco individual; fazer quando houver folga, um item por vez.
 
 - [ ] **T6.1 — Turbopack no dev** (*4.6*): `"dev": "next dev --turbopack"`. 5 minutos.
 - [ ] **T6.2 — `typedRoutes`** (*4.7*): habilitar e corrigir os hrefs que o build apontar.
-- [ ] **T6.3 — Sentry com source maps** (*4.5*): criar org/projeto, `SENTRY_AUTH_TOKEN` no ambiente de build, habilitar `sourcemaps`. Validar com erro de teste.
+- [x] ~~**T6.3 — Sentry com source maps**~~ — obsoleto: Sentry removido em out/2026 (não era usado) (*4.5*): criar org/projeto, `SENTRY_AUTH_TOKEN` no ambiente de build, habilitar `sourcemaps`. Validar com erro de teste.
 - [ ] **T6.4 — Tailwind 3 → 4** (*4.2*): rodar `npx @tailwindcss/upgrade`, migrar a cor `brand` para `@theme`, validar dark mode `class`. Fazer em branch separada com revisão visual de todas as telas.
 - [ ] **T6.5 — Prettier + lint-staged** (*4.9*): formatar o repo num commit isolado ("format only") para não poluir diffs futuros.
 - [ ] **T6.6 — React Compiler** (*4.8*): habilitar `experimental.reactCompiler`, smoke test completo nas telas client-heavy (upload, reordenação).
@@ -206,4 +206,4 @@ Baixo risco individual; fazer quando houver folga, um item por vez.
 | 3 | Skeletons, uploads paralelos, ISR, dashboard | Fase 2 (rede de segurança) |
 | 4 | TUS, constraint de posição, RPC sem-imagens, thumbnails | D2, Fase 2 |
 | 5 | Lightbox, toasts, lixeira, API em massa | D1 p/ lixeira |
-| 6 | Stack (Tailwind 4, Sentry maps, Turbopack...) | folga |
+| 6 | Stack (Tailwind 4, Turbopack...) | folga |

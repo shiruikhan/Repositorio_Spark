@@ -12,7 +12,7 @@ Web module for uploading, managing, and distributing product images to marketpla
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS 3 (dark mode) |
 | Backend | Supabase (Auth + Postgres + Storage) |
-| Deploy | Hostinger Node.js via GitHub |
+| Deploy | Hostinger Node.js via GitHub (Node 24 on the host) |
 | Node.js | ≥ 22.0.0 |
 
 ---
@@ -54,7 +54,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 | `/dashboard` | Protected | Stats overview (per type) and recent uploads |
 | `/upload` | Protected | Multi-file drag-and-drop upload with preview and product-name feedback |
 | `/gallery` | Protected | Product search, pagination, "no images" filter |
-| `/gallery/[productCode]` | Protected | Per-product detail: drag-and-drop reorder, copy link, download, inline video preview |
+| `/gallery/[productCode]` | Protected | Per-product detail: drag-and-drop reorder, copy link, download, inline video preview; per-file delete (admin) for images, manuals, promos and videos |
 | `/profile` | Protected | Password change and API key management |
 | `/admin` | Protected (admin) | User creation |
 | `/docs` | Protected | API documentation and live tester |
@@ -195,7 +195,7 @@ scripts/                      # Standalone maintenance scripts (node scripts/*.m
 
 ```bash
 npm run dev      # Start development server
-npm run build    # Production build
+npm run build    # Production build (next build --webpack — Turbopack fails on the Hostinger build env)
 npm run start    # Start production server
 npm run lint     # eslint src
 ```

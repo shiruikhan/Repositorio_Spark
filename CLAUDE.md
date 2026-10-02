@@ -82,6 +82,13 @@ FOTOS_ROOT= / ONEDRIVE_FOTOS_ROOT=  # pasta raiz varrida por scripts/upload-from
 - `images.remotePatterns` libera `obbymrwivuhjopwnmoxx.supabase.co/storage/v1/object/public/**` para o otimizador do `next/image`.
 - `headers()` aplica `no-store` a tudo exceto `_next/static`/`_next/image`/`favicon`.
 
+## Deploy (Hostinger)
+- Hospedagem Node.js na Hostinger, conectada ao GitHub: o deploy é disparado a partir de `main` (push) e roda `npm install` + `npm run build` (saída `.next`). Configuração fica no painel da Hostinger, não no repositório (não há `.github/workflows`)
+- Node.js configurado no painel: 24.x (o projeto aceita `>=22`, ver `engines`)
+- `npm run build` usa `next build --webpack`: no ambiente de build da Hostinger o Turbopack falhava com `TurbopackInternalError: creating new process` ao executar o PostCSS (mesmo em Node 22 e 24; localmente compilava normalmente). `npm run dev` segue com Turbopack
+- Variáveis de ambiente de produção (Supabase) são definidas no painel; `SUPABASE_SERVICE_ROLE_KEY` é obrigatória (exclusões movem arquivos para `trash/` via admin client)
+- Um build que falha não derruba o site: continua no ar a última versão que compilou
+
 ## Rotas da aplicação
 | Rota | Tipo | Descrição |
 |------|------|-----------|
@@ -90,7 +97,7 @@ FOTOS_ROOT= / ONEDRIVE_FOTOS_ROOT=  # pasta raiz varrida por scripts/upload-from
 | `/dashboard` | protegido | Visão geral com stats e últimos uploads |
 | `/upload` | protegido | Upload múltiplo com drag-drop, preview e feedback do nome do produto |
 | `/gallery` | protegido | Busca e grid de produtos com paginação (24/página) e filtro "sem imagens" via SQL |
-| `/gallery/[productCode]` | protegido | Detalhe com drag-and-drop de reordenação, copy link, download, preview de vídeo inline |
+| `/gallery/[productCode]` | protegido | Detalhe com drag-and-drop de reordenação, copy link, download, preview de vídeo inline; exclusão individual (admin) de qualquer tipo — imagem, manual PDF, promo e vídeo |
 | `/profile` | protegido | Troca de senha e gestão de API Key |
 | `/admin` | protegido (is_admin) | Criação de usuários |
 | `/docs` | protegido | Documentação e tester da API (inclui endpoint `/zip`) |
@@ -144,6 +151,15 @@ FOTOS_ROOT= / ONEDRIVE_FOTOS_ROOT=  # pasta raiz varrida por scripts/upload-from
 | Header `<Link>` | Âncoras internas trocadas por `next/link`; headers HTTP legados (`Pragma`, `Expires`, `Surrogate-Control`) removidos | `Header.tsx`, `next.config.ts` |
 | A11y | `aria-label`/`aria-pressed` em botões só-ícone; alt text descritivo nos cards | `ImageGrid.tsx`, `GalleryGrid.tsx`, `dashboard/page.tsx` |
 | ESLint 9 | `next lint` (removido no Next 16) substituído por flat config nativa + `eslint src` | `eslint.config.mjs`, `package.json` |
+
+## Histórico de melhorias (out/2026)
+| Item | Descrição | Arquivo(s) |
+|------|-----------|-----------|
+| Exclusão de todos os tipos | Botão de excluir (modal de confirmação, reutiliza `deleteImage`) nas seções de manual PDF, material promocional e vídeo; antes só high/low tinham exclusão individual | `gallery/[productCode]/DeleteFileButton.tsx`, `gallery/[productCode]/page.tsx` |
+| Build com webpack | `next build --webpack` por causa de falha do Turbopack no build da Hostinger (ver seção Deploy) | `package.json` |
+| Atualização de segurança | `next` 16.2.9 → 16.3.8 (corrige 3 vulnerabilidades críticas, entre elas RCE) e `sharp` 0.34 → 0.35; `npm audit` zerado | `package.json`, `package-lock.json` |
+| Sentry removido | Não era usado; `@sentry/nextjs`, `instrumentation*.ts` e `sentry.*.config.ts` removidos (~240 KB a menos no maior chunk de JS do cliente). `global-error.tsx` mantido, sem Sentry | `next.config.ts`, `app/global-error.tsx` |
+| LCP da galeria pública | `priority` nas 4 primeiras miniaturas de `/` | `app/PublicGallery.tsx` |
 
 ## API para o integrador
 ```
@@ -201,4 +217,3 @@ Rodados manualmente com `node scripts/<arquivo>.mjs`. Cada um parseia `.env.loca
 - `next.config.ts` aplica `no-store` apenas em rotas dinâmicas (`/((?!_next/static|_next/image|favicon).*)`); assets estáticos são cacheados normalmente pelo browser
 - Ao regenerar tipos: usar MCP `generate_typescript_types` e sobrescrever `src/types/database.ts`
 - Rate limiting em memória (`src/lib/ratelimit.ts`) — adequado para deploy single-instance no Hostinger; se migrar para multi-instância, substituir por `@upstash/ratelimit` + Redis
-- `npm run build` usa `next build --webpack` (não Turbopack): no ambiente de build da Hostinger o Turbopack falhava com `TurbopackInternalError: creating new process` ao executar o PostCSS (mesmo em Node 22 e 24; local compilava normalmente). `npm run dev` segue com Turbopack

@@ -128,7 +128,7 @@ O projeto está no Tailwind 3.4. A v4 (CSS-first, `@theme`, sem `tailwind.config
 ### 🟡 4.4 Tipos gerados não são usados nas queries
 `src/types/database.ts` existe, mas `createClient` é chamado sem o generic (`createClient<Database>(...)`) e a galeria faz casts manuais (`row.product_code as string`). Tipar os clients elimina os casts e pega divergências de schema em build time.
 
-### 🟡 4.5 Sentry sem source maps
+### ~~🟡 4.5 Sentry sem source maps~~ — obsoleto (Sentry removido em out/2026)
 `next.config.ts` desativa upload de source maps — stack traces em produção virão minificados/ilegíveis. Criar projeto/org no Sentry, configurar `SENTRY_AUTH_TOKEN` e habilitar `sourcemaps` torna o Sentry de fato útil para depurar.
 
 ### 🟢 4.6 Turbopack no dev
