@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ImageGrid from "./ImageGrid";
+import DeleteFileButton from "./DeleteFileButton";
 
 interface Props {
   params: Promise<{ productCode: string }>;
@@ -125,6 +126,7 @@ export default async function ProductDetailPage({ params }: Props) {
                   Download PDF
                 </a>
               )}
+              <DeleteFileButton id={m.id} filePath={m.file_path} productCode={code} label="manual" />
             </div>
           ))}
         </div>
@@ -155,6 +157,7 @@ export default async function ProductDetailPage({ params }: Props) {
                     Download
                   </a>
                 )}
+                <DeleteFileButton id={item.id} filePath={item.file_path} productCode={code} label="material promocional" />
               </div>
             );
           })}
@@ -186,6 +189,7 @@ export default async function ProductDetailPage({ params }: Props) {
                       Download
                     </a>
                   )}
+                  <DeleteFileButton id={item.id} filePath={item.file_path} productCode={code} label="vídeo" />
                 </div>
               </div>
             );
