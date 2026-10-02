@@ -132,7 +132,7 @@ FOTOS_ROOT= / ONEDRIVE_FOTOS_ROOT=  # pasta raiz varrida por scripts/upload-from
 | Tipos TS | `src/types/database.ts` gerado via Supabase MCP com schema completo | `types/database.ts` |
 | Paginação pública | Galeria `/` paginada server-side (24/pág); busca via URL (`?q=&page=`) com debounce | `app/page.tsx`, `app/PublicGallery.tsx` |
 | Rate limiting | Limiter em memória: `/images` 60 req/min, `/zip` 5 req/min por IP; `Retry-After: 60` | `lib/ratelimit.ts`, rotas de API |
-| Sentry | Rastreamento de erros em produção; ativado via `NEXT_PUBLIC_SENTRY_DSN` | `sentry.*.config.ts`, `instrumentation.ts`, `next.config.ts` |
+| Sentry | Rastreamento de erros em produção; ativado via `NEXT_PUBLIC_SENTRY_DSN` | `sentry.server.config.ts`, `src/instrumentation.ts`, `src/instrumentation-client.ts`, `src/app/global-error.tsx`, `next.config.ts` |
 
 ## Histórico de melhorias (plano de ação — jun/2026)
 | Item | Descrição | Arquivo(s) |

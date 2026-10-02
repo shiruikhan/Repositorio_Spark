@@ -18,3 +18,5 @@ Sentry.init({
     "Load failed",
   ],
 });
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
