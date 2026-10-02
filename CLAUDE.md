@@ -64,7 +64,6 @@ Agrega por `product_code`: `total_images`, `high_count`, `low_count`, `manual_co
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=          # usado apenas em Server Actions (admin client) e validação de API Key em /api/products/.../images
-NEXT_PUBLIC_SENTRY_DSN=             # DSN do projeto Sentry — se ausente, o SDK é desabilitado silenciosamente
 ```
 Variáveis opcionais usadas **apenas por scripts** (`scripts/`), nunca pela aplicação:
 ```
@@ -82,7 +81,6 @@ FOTOS_ROOT= / ONEDRIVE_FOTOS_ROOT=  # pasta raiz varrida por scripts/upload-from
 - `experimental.serverActions.bodySizeLimit: "50mb"` — teto do payload de upload múltiplo via Server Action.
 - `images.remotePatterns` libera `obbymrwivuhjopwnmoxx.supabase.co/storage/v1/object/public/**` para o otimizador do `next/image`.
 - `headers()` aplica `no-store` a tudo exceto `_next/static`/`_next/image`/`favicon`.
-- `withSentryConfig` com `sourcemaps.disable: true` e `telemetry: false`.
 
 ## Rotas da aplicação
 | Rota | Tipo | Descrição |
@@ -132,7 +130,7 @@ FOTOS_ROOT= / ONEDRIVE_FOTOS_ROOT=  # pasta raiz varrida por scripts/upload-from
 | Tipos TS | `src/types/database.ts` gerado via Supabase MCP com schema completo | `types/database.ts` |
 | Paginação pública | Galeria `/` paginada server-side (24/pág); busca via URL (`?q=&page=`) com debounce | `app/page.tsx`, `app/PublicGallery.tsx` |
 | Rate limiting | Limiter em memória: `/images` 60 req/min, `/zip` 5 req/min por IP; `Retry-After: 60` | `lib/ratelimit.ts`, rotas de API |
-| Sentry | Rastreamento de erros em produção; ativado via `NEXT_PUBLIC_SENTRY_DSN` | `sentry.server.config.ts`, `src/instrumentation.ts`, `src/instrumentation-client.ts`, `src/app/global-error.tsx`, `next.config.ts` |
+| Sentry (removido) | Rastreamento de erros em produção; **removido em out/2026** (não era usado; ~330 KB a menos de JS no cliente). Não reinstalar sem necessidade | — |
 
 ## Histórico de melhorias (plano de ação — jun/2026)
 | Item | Descrição | Arquivo(s) |
@@ -204,5 +202,3 @@ Rodados manualmente com `node scripts/<arquivo>.mjs`. Cada um parseia `.env.loca
 - Ao regenerar tipos: usar MCP `generate_typescript_types` e sobrescrever `src/types/database.ts`
 - Rate limiting em memória (`src/lib/ratelimit.ts`) — adequado para deploy single-instance no Hostinger; se migrar para multi-instância, substituir por `@upstash/ratelimit` + Redis
 - `npm run build` usa `next build --webpack` (não Turbopack): no ambiente de build da Hostinger o Turbopack falhava com `TurbopackInternalError: creating new process` ao executar o PostCSS (mesmo em Node 22 e 24; local compilava normalmente). `npm run dev` segue com Turbopack
-- Sentry sem tracing/Replay (`bundleSizeOptimizations` em `next.config.ts`, sem `tracesSampleRate`): só captura de erros, para reduzir ~150 KB do JS carregado em todas as páginas
-- Sentry ativado somente quando `NEXT_PUBLIC_SENTRY_DSN` estiver definido — degradação graciosa em ambientes sem a variável

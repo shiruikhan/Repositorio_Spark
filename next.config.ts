@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -29,19 +28,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  // Silencia logs do Sentry durante o build
-  silent: true,
-  // Desativa telemetria do Sentry CLI
-  telemetry: false,
-  // Não faz upload de source maps (sem Sentry org/project configurado)
-  sourcemaps: { disable: true },
-  // Reduz o bundle do SDK no navegador: sem tracing de performance nem Replay (só captura de erros)
-  bundleSizeOptimizations: {
-    excludeDebugStatements: true,
-    excludeTracing: true,
-    excludeReplayIframe: true,
-    excludeReplayShadowDom: true,
-    excludeReplayWorker: true,
-  },
-});
+export default nextConfig;

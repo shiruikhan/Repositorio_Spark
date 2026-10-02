@@ -12,7 +12,6 @@ Web module for uploading, managing, and distributing product images to marketpla
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS 3 (dark mode) |
 | Backend | Supabase (Auth + Postgres + Storage) |
-| Monitoring | Sentry (optional, DSN-gated) |
 | Deploy | Hostinger Node.js via GitHub |
 | Node.js | ≥ 22.0.0 |
 
@@ -40,7 +39,6 @@ Create `.env.local` at the project root:
 NEXT_PUBLIC_SUPABASE_URL=https://<project-id>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
-NEXT_PUBLIC_SENTRY_DSN=<sentry-dsn>   # optional — Sentry is silently disabled when absent
 ```
 
 > `SUPABASE_SERVICE_ROLE_KEY` is only used server-side (admin client in Server Actions and API key validation). Never expose it in client code.
